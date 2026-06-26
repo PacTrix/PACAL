@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(bmad-dev-story)",
+      "Bash(python3 /Users/pac/Documents/Claude/Projects/pacal/_bmad/scripts/resolve_customization.py --skill /Users/pac/Documents/Claude/Projects/pacal/.claude/skills/bmad-dev-story --key workflow)",
+      "Bash(git -C /Users/pac/Documents/Claude/Projects/pacal rev-parse HEAD)",
+      "Bash(pnpm dlx *)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(pnpm *)",
+      "Bash(grep -E \"^\\\\.env$|^data/\" /Users/pac/Documents/Claude/Projects/pacal/pacal/.gitignore)",
+      "Bash(SKIP_ENV_VALIDATION=1 pnpm build)"
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "pacal_entry" ADD COLUMN "photo_path" text;

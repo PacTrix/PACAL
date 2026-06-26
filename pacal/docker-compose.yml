@@ -1,0 +1,25 @@
+services:
+  pacal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Le conteneur PostgreSQL est joignable par son nom de service sur le réseau partagé
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres-sql:5432/pacal"
+      NODE_ENV: "production"
+    volumes:
+      # Volume photos — couvert par Hyper Backup existant du NAS
+      - ./data/photos:/data/photos
+    networks:
+      - postgres_network
+
+networks:
+  postgres_network:
+    external: true
+    # Nom du réseau Docker partagé avec le conteneur PostgreSQL existant.
+    # Vérifier avec : docker network ls
+    # Adapter si le réseau s'appelle autrement sur le NAS.
+    name: postgres_network

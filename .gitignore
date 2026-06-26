@@ -1,0 +1,18 @@
+# Dépendances et builds
+node_modules/
+.next/
+*.tsbuildinfo
+
+# Secrets et environnement
+.env
+.env.*
+!.env.example
+
+# Fichiers système Mac
+.DS_Store
+
+# Archives temporaires de déploiement
+*.zip
+
+# Logs
+*.log

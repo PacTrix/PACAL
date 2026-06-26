@@ -1,0 +1,8 @@
+# Journal de décisions — Architecture PACAL
+
+| Date | Décision / échange | Raison |
+|------|---------------------|--------|
+| 2026-06-18 | Documents d'entrée chargés : `brief.md` (approuvé), `prd.md` (final), `docs/PACAL-cahier-des-charges.md` (cahier des charges initial). Pas de spec UX séparée — entrée Vision+Fonctionnalités choisie en PRD, pas de workflow UX dédié lancé. | Conforme à la séquence Full Method ; pas de document supplémentaire à attendre. |
+| 2026-06-18 | Starter retenu : T3 Stack (Next.js 16 + tRPC + Drizzle + Tailwind), versions vérifiées par recherche web plutôt que supposées. | Auto-hébergement Synology via image Docker standard, provider PostgreSQL natif. |
+| 2026-06-18 | Décisions critiques : stockage photo en fichiers sur volume monté ; accès distant via Tailscale (vérifié compatible DS923+ via le Centre de paquets Synology officiel) sans authentification applicative. | Choix de l'utilisateur, conformes aux deux recommandations faites. |
+| 2026-06-18 | **Deux hypothèses corrigées par l'utilisateur** : (1) PostgreSQL tourne déjà sur le NAS mais **dans son propre conteneur Docker**, pas nativement — j'avais supposé l'inverse. (2) Le job Hyper Backup existant couvre déjà le dossier partagé Docker — mon `[NOTE FOR PM]` sur la sauvegarde était donc une fausse alerte, pas un vrai trou. | Corrigé dans `architecture.md` (section Infrastructure & Deployment). Bon exemple pour le débrief : énoncer une hypothèse explicitement (au lieu de la garder implicite) l'a rendue corrigible en une phrase, dans les deux sens — une vraie lacune révélée, une fausse alerte écartée. |
