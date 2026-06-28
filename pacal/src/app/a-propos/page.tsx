@@ -18,6 +18,18 @@ const STACK = [
 
 const CHANGELOG = [
   {
+    version: "V2",
+    date: "2026-06-28",
+    items: [
+      "Scan de code-barres EAN-13/EAN-8 via la caméra (BarcodeDetector API)",
+      "Enrichissement automatique depuis OpenFoodFacts (nutriscore, nova, greenscore, kcal)",
+      "Scores nutritionnels X·N·Y colorisés dans le formulaire et le rapport PDF",
+      "Calcul automatique des kcal selon la quantité et l'unité",
+      "Signalement ⚠ dans l'historique pour les fiches avec enrichissement incomplet",
+      "Export CSV enrichi avec les données nutritionnelles (7 colonnes V2)",
+    ],
+  },
+  {
     version: "V1.2",
     date: "2026-06-28",
     items: [

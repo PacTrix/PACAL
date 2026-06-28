@@ -76,6 +76,9 @@ development_status:
   2-3-calcul-automatique-des-kcal-selon-la-quantite: review
   2-4-persistance-openfoodfacts-et-flag-of-incomplete: review
   2-5-affichage-vue-detail-et-rapport-pdf: review
+  # Corrections post-déploiement V2
+  2-6-bug-fixes-post-deploy-v2: review
+
   # V2.5 backlog
   2-6-cible-calorique-et-creneaux-horaires: backlog
   2-7-alertes-desequilibre-calorique: backlog

@@ -327,6 +327,44 @@ export function EntryEditForm({ id }: { id: number }) {
         />
       </div>
 
+      {/* Code-barres + enrichissement OpenFoodFacts (FR-36, FR-37, FR-38) */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="edit-barcode" className="text-sm font-medium text-brand-marine">
+          Code-barres{" "}
+          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="edit-barcode"
+            type="text"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onBlur={() => triggerLookup(barcode)}
+            placeholder="EAN-13 ou EAN-8"
+            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+          <BarcodeScanner onDetected={(code) => { setBarcode(code); triggerLookup(code); }} />
+        </div>
+        {lookup.isFetching && (
+          <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>
+        )}
+        {offError && (
+          <p className="text-xs text-orange-500">{offError}</p>
+        )}
+        {offData && (
+          <div className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5">
+            <NutriscoreDisplay
+              nutriscore={offData.nutriscore}
+              nova={offData.nova}
+              greenscore={offData.greenscore}
+            />
+            {offData.name && (
+              <span className="truncate text-xs text-gray-500">{offData.name}</span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Quantité + unité (FR-30) */}
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1">
@@ -412,44 +450,6 @@ export function EntryEditForm({ id }: { id: number }) {
           <option value="">Type de note (optionnel)</option>
           {NOTE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-      </div>
-
-      {/* Code-barres + enrichissement OpenFoodFacts (FR-36, FR-37, FR-38) */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-barcode" className="text-sm font-medium text-brand-marine">
-          Code-barres{" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="edit-barcode"
-            type="text"
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            onBlur={(e) => triggerLookup(e.target.value)}
-            placeholder="EAN-13 ou EAN-8"
-            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-          />
-          <BarcodeScanner onDetected={(code) => { setBarcode(code); triggerLookup(code); }} />
-        </div>
-        {lookup.isFetching && (
-          <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>
-        )}
-        {offError && (
-          <p className="text-xs text-orange-500">{offError}</p>
-        )}
-        {offData && (
-          <div className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5">
-            <NutriscoreDisplay
-              nutriscore={offData.nutriscore}
-              nova={offData.nova}
-              greenscore={offData.greenscore}
-            />
-            {offData.name && (
-              <span className="truncate text-xs text-gray-500">{offData.name}</span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Deux photos (FR-33) */}

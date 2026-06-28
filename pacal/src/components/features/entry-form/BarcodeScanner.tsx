@@ -27,7 +27,11 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const canScan = typeof window !== "undefined" && "BarcodeDetector" in window;
+  // État côté client uniquement pour éviter le mismatch d'hydratation SSR/client
+  const [canScan, setCanScan] = useState(false);
+  useEffect(() => {
+    setCanScan("BarcodeDetector" in window);
+  }, []);
 
   const stopScan = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
