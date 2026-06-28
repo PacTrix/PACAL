@@ -537,8 +537,8 @@ L'utilisateur peut dupliquer une entrée existante depuis la vue historique. La 
 
 **Conséquences (testables) :**
 - Une action "Dupliquer" est accessible depuis la vue historique pour chaque entrée.
-- L'action ouvre le formulaire de saisie pré-rempli avec les valeurs de l'entrée source.
-- L'horodatage du formulaire pré-rempli est celui de l'instant de la duplication, modifiable comme pour toute nouvelle saisie.
+- L'action crée immédiatement une nouvelle entrée avec les valeurs de l'entrée source, sans étape intermédiaire de formulaire à valider.
+- L'horodatage de la nouvelle entrée est celui de l'instant de la duplication.
 - La photo de l'entrée source n'est pas copiée — le champ photo est vide sur la nouvelle entrée.
 - L'entrée source reste inchangée.
 
