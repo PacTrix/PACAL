@@ -11,7 +11,7 @@ export function computeKcal(
   if (!unit || quantity === null || quantity <= 0) return null;
 
   if (unit === "portion") {
-    return kcalPerPortion !== null ? Math.floor(kcalPerPortion) : null;
+    return kcalPerPortion !== null ? Math.floor(quantity * kcalPerPortion) : null;
   }
 
   if (kcalPer100g === null) return null;

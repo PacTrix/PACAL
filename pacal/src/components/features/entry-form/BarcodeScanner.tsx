@@ -44,6 +44,10 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
 
   const startScan = async () => {
     setError(null);
+    if (!canScan) {
+      setError("Scan non supporté par ce navigateur. Utilisez Chrome sur Android.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
@@ -80,8 +84,6 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
   useEffect(() => {
     return () => stopScan();
   }, []);
-
-  if (!canScan) return null;
 
   return (
     <div className="flex flex-col gap-2">

@@ -506,7 +506,7 @@ So que je n'aie pas à faire le calcul moi-même (FR-39).
 - `kg` : `floor(quantité × 1000 × kcalPer100g / 100)`
 - `dl` : `floor(quantité × 100 × kcalPer100g / 100)`
 - `l` : `floor(quantité × 1000 × kcalPer100g / 100)`
-- `portion` : `floor(kcalPerPortion)` (valeur fixe, quantité ignorée)
+- `portion` : `floor(quantité × kcalPerPortion)` (ex : 2 portions × 123 kcal = 246)
 
 **Given** que l'unité est `portion` mais `kcalPerPortion` est absent
 **When** je saisis une quantité
