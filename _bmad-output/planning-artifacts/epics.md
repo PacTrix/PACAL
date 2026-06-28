@@ -430,7 +430,7 @@ En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut identifier un alimen
 
 ---
 
-### V2 — Stories 2.1 à 2.5 (2026-06-28)
+### V2 — Stories 2.1 à 2.6 (2026-06-28)
 
 ### Story 2.1 : Saisie et scan du code-barres EAN
 
@@ -570,6 +570,23 @@ So que je dispose du contexte nutritionnel complet dans mes documents de suivi (
 **Then** le code-barres est affiché sur les entrées qui en ont un
 **And** les scores X·N·Y apparaissent avec les couleurs correspondantes (via `StyleSheet` de `@react-pdf/renderer`)
 **And** les entrées avec `ofIncomplete = true` affichent "(données manuelles)" à la place des scores
+
+**And** aucune migration de base de données n'est requise pour cette story
+
+---
+
+### Story 2.6 : Corrections post-déploiement V2 *(bug-fix, 2026-06-28)*
+
+As a utilisateur,
+I want que les bugs constatés lors du test V2 soient corrigés,
+So que je puisse utiliser le scan et l'enrichissement comme prévu.
+
+**Bugs corrigés :**
+
+- **Changelog À propos** : V2 était absent — ajout de l'entrée V2 en tête de liste.
+- **Position du champ code-barres** : le champ était après les notes — déplacé entre la description et les champs quantité/unité (dans `EntryForm` et `EntryEditForm`).
+- **Bouton scanner invisible** : `canScan` était une constante calculée au SSR (`false` côté serveur) → mismatch d'hydratation → bouton absent sur Chrome Android. Fix : `useState(false)` + `useEffect` côté client.
+- **Barcode s'effaçait au blur** : `onBlur` lisait `e.target.value` (peut être vide sur mobile au moment du blur) → remplacé par la lecture du state React `barcode`.
 
 **And** aucune migration de base de données n'est requise pour cette story
 
