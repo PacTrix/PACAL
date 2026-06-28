@@ -23,5 +23,12 @@
       "tag": "0002_v12_schema",
       "breakpoints": true
     }
+    ,{
+      "idx": 3,
+      "version": "7",
+      "when": 1751203200000,
+      "tag": "0003_fix_photo_column_names",
+      "breakpoints": true
+    }
   ]
 }
