@@ -79,6 +79,7 @@ development_status:
   # Corrections post-déploiement V2
   2-6-bug-fixes-post-deploy-v2: review
   2-bugfix2-scanner-et-portions: review
+  2-bugfix3-scanner-https-diagnostic: review
 
   # V2.5 backlog
   2-6-cible-calorique-et-creneaux-horaires: backlog

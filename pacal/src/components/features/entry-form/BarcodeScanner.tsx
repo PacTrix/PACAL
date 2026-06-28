@@ -44,6 +44,10 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
 
   const startScan = async () => {
     setError(null);
+    if (!window.isSecureContext) {
+      setError("Le scan nécessite HTTPS. Activez HTTPS sur le NAS (Tailscale cert ou reverse proxy Synology).");
+      return;
+    }
     if (!canScan) {
       setError("Scan non supporté par ce navigateur. Utilisez Chrome sur Android.");
       return;
