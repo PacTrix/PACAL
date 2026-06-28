@@ -3,14 +3,16 @@ stepsCompleted: [1, 2, 3, 4, 5, 6, 7, 8]
 inputDocuments:
   - _bmad-output/planning-artifacts/briefs/brief-PACAL-2026-06-18/brief.md
   - _bmad-output/planning-artifacts/prds/prd-PACAL-2026-06-18/prd.md
+  - _bmad-output/planning-artifacts/prd-consolidated.md
   - docs/PACAL-cahier-des-charges.md
 workflowType: 'architecture'
 lastStep: 8
-status: 'complete — addendum V1.1 ajouté 2026-06-26'
+status: 'complete — addendum V1.2 retrofit + addendum V2 ajoutés 2026-06-28'
 project_name: 'PACAL'
 user_name: 'Utilisateur'
 date: '2026-06-18'
 completedAt: '2026-06-18'
+lastUpdated: '2026-06-28'
 ---
 
 # Architecture Decision Document
@@ -725,6 +727,89 @@ une story applicative.
 
 ---
 
+## Addendum V1.2 — Retrofit schéma et corrections (2026-06-28)
+
+### Contexte
+
+La V1.2 (stories 1.12–1.19) a été implémentée hors du cycle BMAD normal. Les modifications de schéma ont donc été appliquées en production sans passer par une décision d'architecture documentée. Ce retrofit corrige la divergence entre le document d'architecture et l'état réel de la base de données.
+
+**Règle permanente :** ce document fait désormais foi sur le schéma réel. En cas de doute, le schéma Drizzle (`src/server/db/schema.ts`) est la source de vérité technique ; ce document en est la trace de décision.
+
+---
+
+### Schéma réel de la table `pacal_entry` (post V1.2)
+
+```typescript
+// src/server/db/schema.ts — état au 2026-06-28
+entries = createTable("entry", {
+  id:               integer().primaryKey().generatedByDefaultAsIdentity(),
+  timestamp:        timestamp({ withTimezone: true }).notNull(),
+  description:      text(),
+  quantity:         integer(),                    // ← V1.2 : remplace weightG (real)
+  unit:             varchar({ length: 10 }),      // ← V1.2 : nouveau ("g","kg","dl","l","portion")
+  calories:         real(),
+  estimationStatus: text(enum: ["estime","mesure"]).notNull().default("estime"),
+  condition:        text(enum: ENTRY_CONDITIONS).notNull(),
+  note:             text(),
+  noteType:         varchar({ length: 20 }),      // ← V1.2 : nouveau ("aliment","médicament","sommeil","autre")
+  photoPath1:       text(),                       // ← V1.2 : remplace photoPath
+  photoPath2:       text(),                       // ← V1.2 : nouveau (2ème photo indépendante)
+  createdAt:        timestamp({ withTimezone: true }).notNull(),
+  updatedAt:        timestamp({ withTimezone: true }),
+})
+```
+
+**Casing Drizzle (rappel leçon V1.2) :** `casing: 'snake_case'` génère un underscore uniquement devant les lettres majuscules, pas devant les chiffres. `photoPath1` → colonne SQL `photo_path1` (sans underscore avant `1`). Règle : ne jamais terminer un nom de champ Drizzle par un chiffre si on attend un underscore avant ce chiffre. Correctif appliqué en migration 0003.
+
+---
+
+### Corrections apportées au document d'architecture V1.0
+
+#### 1. Remplacement `weightG` → `quantity` + `unit`
+
+**V1.0 documentait :** `poids estimé?` (real) sur `entries`.
+
+**Réalité V1.2 :** le champ `weightG` (real) a été remplacé par :
+- `quantity` (integer nullable) — valeur entière
+- `unit` (varchar 10 nullable) — liste fermée : `g`, `kg`, `dl`, `l`, `portion`
+
+**Décision :** séparation quantité/unité pour permettre le calcul automatique des kcal depuis les données OpenFoodFacts (V2, FR-39) selon l'unité choisie. Un entier suffit — la précision au gramme est cohérente avec l'usage (estimation visuelle).
+
+#### 2. Remplacement `photoPath` → `photoPath1` + `photoPath2`
+
+**V1.0 documentait :** `chemin de la photo?` (text) sur `entries`.
+
+**Réalité V1.2 :** la colonne `photo_path` a été renommée `photo_path1` et une colonne `photo_path2` ajoutée (FR-33). Les deux sont text nullable et indépendantes. Le routeur `entries.delete` supprime les deux fichiers physiques si présents.
+
+#### 3. Ajout `noteType`
+
+**V1.0 documentait :** `note?` (text) uniquement.
+
+**Réalité V1.2 :** colonne `note_type` (varchar 20 nullable) ajoutée pour qualifier la note : `aliment`, `médicament`, `sommeil`, `autre` (FR-31). Le champ `note` reste inchangé.
+
+#### 4. Table `product_references` — non créée, décision révisée
+
+**V1.0 anticipait :** une table `product_references` liée 1:1 à `entries` pour les données OpenFoodFacts.
+
+**Décision V2 (2026-06-28) :** cette table n'a pas été créée et ne le sera pas. Les données OpenFoodFacts seront stockées directement sur `entries` sous forme de colonnes nullable (voir Addendum V2 ci-dessous). Raison : aucun bénéfice de normalisation pour un usage mono-utilisateur sans catalogue produits local ; les jointures ajouteraient de la complexité sans valeur.
+
+#### 5. Table `settings` — toujours anticipée, non encore créée
+
+La table `settings` (cible calorique, créneaux horaires) reste planifiée pour V2.5 (FR-19 à FR-23). Elle n'a pas été créée en V1.x — cohérent avec le périmètre livré.
+
+---
+
+### Résumé des migrations appliquées en production
+
+| Migration | Contenu | Appliquée |
+|---|---|---|
+| `0000_hesitant_eternity` | Schéma initial V1.0 | ✅ |
+| `0001_luxuriant_lady_ursula` | Ajustements post-init | ✅ |
+| `0002_v12_schema.sql` | `weightG`→`quantity`+`unit`, `noteType`, `photo_path`→`photo_path_1`+`photo_path_2` | ✅ |
+| `0003_fix_photo_column_names.sql` | Renommage `photo_path_1`→`photo_path1`, `photo_path_2`→`photo_path2` (casing Drizzle) | ✅ |
+
+---
+
 ## Addendum V1.1 — Décisions d'architecture (2026-06-26)
 
 ### Contexte de la révision
@@ -812,7 +897,242 @@ entryRow (flexDirection: "row", alignItems: "flex-start")
 
 ---
 
-### Résumé des impacts V1.1
+---
+
+## Addendum V2 — Scan code-barres et enrichissement OpenFoodFacts (2026-06-28)
+
+### Contexte
+
+V2 implémente FR-36 à FR-42 (PRD consolidé §4.2). Cet addendum documente les décisions architecturales nouvelles. Les décisions V1.x restent valides et non remises en cause.
+
+---
+
+### D1 — Bibliothèque de scan code-barres : `BarcodeDetector` API native
+
+**Décision : API native `BarcodeDetector` (Chrome Android), saisie manuelle comme repli universel.**
+
+```typescript
+// Vérification de disponibilité (à faire au montage du composant)
+const canScan = 'BarcodeDetector' in window;
+
+// Usage
+const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8'] });
+const barcodes = await detector.detect(videoFrame);
+```
+
+**Justification :**
+- Les deux appareils de l'utilisateur (Samsung Galaxy, Redmi Pad SE) sont sur Chrome Android 83+ — l'API native est disponible et sans bundle supplémentaire.
+- Zéro dépendance JS ajoutée. Maintien du bundle à taille minimale.
+- Le bouton Scan est conditionnel (`'BarcodeDetector' in window`) : masqué si l'API est absente (Mac Chrome), la saisie manuelle du champ reste toujours accessible.
+
+**Alternative écartée : `@zxing/browser`** — ~300 Ko de bundle pour une couverture étendue (Mac Chrome) qui n'est pas dans le besoin actuel. À réévaluer si le scan depuis Mac devient un besoin.
+
+**Implémentation :** le composant `BarcodeScanner` (à créer sous `components/features/entry-form/`) gère :
+1. `getUserMedia({ video: { facingMode: 'environment' } })` pour la caméra arrière
+2. Boucle de détection sur frames vidéo via `BarcodeDetector.detect()`
+3. Arrêt automatique des tracks caméra après détection (libération ressource)
+4. HTTPS requis — déjà résolu (certificats Tailscale `*.ts.net` activés, cf. step 7 validation V1.0)
+
+---
+
+### D2 — Appel OpenFoodFacts : côté serveur via tRPC
+
+**Décision : nouvelle procédure tRPC `products.lookup` dans `src/server/api/routers/products.ts`, appel réel dans `src/lib/openfoodfacts.ts`.**
+
+```typescript
+// src/lib/openfoodfacts.ts
+export async function lookupProduct(barcode: string): Promise<OFFProduct | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  try {
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`,
+      { signal: controller.signal }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status === 0) return null; // produit inconnu
+    return parseOFFProduct(data.product);
+  } catch {
+    return null; // timeout ou réseau absent → null, pas d'exception
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+```
+
+**Justification :**
+- Cohérent avec la règle architecturale établie : tous les appels externes passent par `lib/`, les routeurs sont les seuls appelants de `lib/` (frontière définie au step 6).
+- Timeout `AbortController` à 5s — comportement offline garanti (FR-37).
+- `null` retourné sur toute erreur (produit inconnu, réseau absent, timeout) → le routeur positionne `of_incomplete: true`.
+- La latence tRPC sur Tailscale local est négligeable (< 5ms) — pas de différence perçue vs appel client-side.
+
+**NFR-3 :** le code-barres sort depuis l'IP Tailscale du NAS, pas depuis l'IP des appareils mobiles — cohérent avec le principe de non-transmission de données personnelles identifiantes.
+
+**Type retourné :**
+```typescript
+type OFFProduct = {
+  name: string | null;
+  nutriscore: 'a' | 'b' | 'c' | 'd' | 'e' | null;
+  nova: 1 | 2 | 3 | 4 | null;
+  greenscore: 'a' | 'b' | 'c' | 'd' | 'e' | null;
+  kcalPer100g: number | null;
+  kcalPerPortion: number | null;
+};
+```
+
+**Champs OpenFoodFacts utilisés :**
+- `nutriments.energy-kcal_100g` → `kcalPer100g`
+- `nutriments.energy-kcal_serving` → `kcalPerPortion`
+- `nutriscore_grade` → `nutriscore`
+- `nova_group` → `nova`
+- `ecoscore_grade` → `greenscore` *(OpenFoodFacts nomme cela "ecoscore" ; c'est le Green Score affiché dans l'app)*
+
+---
+
+### D3 — Schéma : champs V2 directement sur `entries`
+
+**Décision : 7 colonnes nullable ajoutées à `pacal_entry`. Table `product_references` abandonnée (cf. Addendum V1.2).**
+
+**Migration à créer (`drizzle/0004_v2_schema.sql`) :**
+```sql
+ALTER TABLE "pacal_entry" ADD COLUMN "barcode"          varchar(50);
+ALTER TABLE "pacal_entry" ADD COLUMN "nutriscore"       varchar(2);
+ALTER TABLE "pacal_entry" ADD COLUMN "nova"             integer;
+ALTER TABLE "pacal_entry" ADD COLUMN "greenscore"       varchar(2);
+ALTER TABLE "pacal_entry" ADD COLUMN "kcal_per100g"     real;
+ALTER TABLE "pacal_entry" ADD COLUMN "kcal_per_portion" real;
+ALTER TABLE "pacal_entry" ADD COLUMN "of_incomplete"    boolean DEFAULT false;
+```
+
+**Noms Drizzle → colonnes SQL (règle casing) :**
+| Champ Drizzle | Colonne SQL générée | Commentaire |
+|---|---|---|
+| `barcode` | `barcode` | ✓ |
+| `nutriscore` | `nutriscore` | ✓ |
+| `nova` | `nova` | ✓ |
+| `greenscore` | `greenscore` | ✓ |
+| `kcalPer100g` | `kcal_per100g` | Pas d'underscore avant `1` — colonne nommée `kcal_per100g` |
+| `kcalPerPortion` | `kcal_per_portion` | ✓ |
+| `ofIncomplete` | `of_incomplete` | ✓ |
+
+⚠️ **Attention leçon V1.2 appliquée :** `kcalPer100g` génère `kcal_per100g` (sans underscore avant `1`). La migration SQL doit utiliser `kcal_per100g`, pas `kcal_per_100g`. Vérification systématique requise avant toute migration.
+
+**Schéma Drizzle à ajouter dans `schema.ts` :**
+```typescript
+barcode:        d.varchar({ length: 50 }),
+nutriscore:     d.varchar({ length: 2 }),
+nova:           d.integer(),
+greenscore:     d.varchar({ length: 2 }),
+kcalPer100g:    d.real(),
+kcalPerPortion: d.real(),
+ofIncomplete:   d.boolean().default(false),
+```
+
+---
+
+### D4 — Calcul kcal : côté frontend (React state)
+
+**Décision : calcul pur côté client, déclenché à chaque changement de `quantity` ou `unit`, tant que l'utilisateur n'a pas verrouillé la valeur.**
+
+```typescript
+// Logique de calcul (dans EntryForm)
+function computeKcal(
+  quantity: number | null,
+  unit: EntryUnit | null,
+  kcalPer100g: number | null,
+  kcalPerPortion: number | null
+): number | null {
+  if (!quantity || !unit) return null;
+  if (unit === 'g')    return kcalPer100g ? Math.floor(quantity * kcalPer100g / 100) : null;
+  if (unit === 'kg')   return kcalPer100g ? Math.floor(quantity * 1000 * kcalPer100g / 100) : null;
+  if (unit === 'dl')   return kcalPer100g ? Math.floor(quantity * 100 * kcalPer100g / 100) : null;
+  if (unit === 'l')    return kcalPer100g ? Math.floor(quantity * 1000 * kcalPer100g / 100) : null;
+  if (unit === 'portion') return kcalPerPortion ? Math.floor(kcalPerPortion) : null;
+  return null;
+}
+```
+
+**État frontend à gérer dans `EntryForm` :**
+```typescript
+const [kcalLocked, setKcalLocked] = useState(false); // true si l'utilisateur a modifié à la main
+```
+
+- Tant que `kcalLocked === false` : le champ kcal est recalculé à chaque changement de quantity/unit.
+- Quand l'utilisateur modifie le champ kcal manuellement : `setKcalLocked(true)`, recalcul suspendu.
+- La valeur `kcalPer100g` et `kcalPerPortion` sont stockées dans le state local du formulaire (reçues depuis la réponse `products.lookup`) et envoyées avec la mutation create/update pour persistance.
+
+**Pourquoi côté client :** le calcul est déterministe, sans appel réseau. Un aller-retour tRPC pour un `floor(quantity * kcalPer100g / 100)` serait un sur-ingénierie sans bénéfice.
+
+---
+
+### D5 — Flag `of_incomplete` et indicateur ⚠ dans l'historique
+
+**Décision : flag boolean sur `entries`, icône ⚠ conditionnelle dans `EntryList`.**
+
+**Cycle de vie du flag :**
+- Positionné à `true` par le routeur `products.lookup` quand OpenFoodFacts retourne `null` (produit inconnu, timeout, erreur réseau) **et** qu'un barcode a été fourni.
+- Positionné à `false` (reset) lors d'une mise à jour de l'entrée via `entries.update` si un enrichissement réussi est fourni.
+- Jamais positionné à `true` si aucun barcode n'a été saisi (entrées sans scan = `ofIncomplete` null ou false).
+
+**Affichage dans `EntryList` :**
+```tsx
+{entry.ofIncomplete && (
+  <span title="Données OpenFoodFacts manquantes" className="text-orange-500">⚠</span>
+)}
+```
+L'icône est non-intrusive (inline avec la ligne), visible sans survol, cliquable pour ouvrir l'édition.
+
+---
+
+### Mapping V2 → structure de fichiers
+
+| FR | Fichier | Action |
+|---|---|---|
+| FR-36 (scan caméra) | `components/features/entry-form/BarcodeScanner.tsx` | Nouveau composant |
+| FR-37 (lookup OFF) | `lib/openfoodfacts.ts` | Implémentation réelle (existait comme placeholder) |
+| FR-37 (routeur) | `server/api/routers/products.ts` | Procédure `lookup` à créer |
+| FR-38 (affichage scores) | `components/features/entry-form/NutritionScores.tsx` | Nouveau composant |
+| FR-39 (calcul kcal) | `components/features/entry-form/EntryForm.tsx` | Logique dans state existant |
+| FR-40 (persistance) | `server/db/schema.ts` + migration `0004` | Colonnes ajoutées |
+| FR-41 (⚠ historique) | `components/features/entry-history/EntryList.tsx` | Indicateur conditionnel |
+| FR-42 (vue détail + PDF) | `app/entrees/[id]/page.tsx` + `lib/pdf.tsx` | Ajouts |
+
+---
+
+### Impact sur le schéma complet `pacal_entry` (post V2)
+
+```
+pacal_entry
+├── id                  integer PK
+├── timestamp           timestamptz NOT NULL
+├── description         text
+├── quantity            integer                    (V1.2)
+├── unit                varchar(10)                (V1.2)
+├── calories            real
+├── estimation_status   text enum NOT NULL
+├── condition           text enum NOT NULL
+├── note                text
+├── note_type           varchar(20)                (V1.2)
+├── photo_path1         text                       (V1.2)
+├── photo_path2         text                       (V1.2)
+├── barcode             varchar(50)                (V2)
+├── nutriscore          varchar(2)                 (V2)
+├── nova                integer                    (V2)
+├── greenscore          varchar(2)                 (V2)
+├── kcal_per100g        real                       (V2)
+├── kcal_per_portion    real                       (V2)
+├── of_incomplete       boolean DEFAULT false      (V2)
+├── created_at          timestamptz NOT NULL
+└── updated_at          timestamptz
+
+Tables non encore créées (V2.5) :
+└── settings            (cible calorique, créneaux horaires)
+```
+
+---
+
+### Résumé des impacts V2 — Addendum V1.1 — Décisions d'architecture (2026-06-26)
 
 | FR | Fichiers modifiés | Nouveaux fichiers | Migration DB |
 |----|-------------------|-------------------|--------------|

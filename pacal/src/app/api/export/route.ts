@@ -13,7 +13,7 @@ const getPhotosDir = () =>
     : path.join(process.cwd(), "data", "photos");
 
 const CSV_HEADER =
-  "id,timestamp,condition,description,quantity,unit,calories,estimation_status,note,note_type,photo_file_1,photo_file_2\n";
+  "id,timestamp,condition,description,quantity,unit,calories,estimation_status,note,note_type,photo_file_1,photo_file_2,barcode,nutriscore,nova,greenscore,kcal_per100g,kcal_per_portion,of_incomplete\n";
 
 function escapeCsv(value: string | null | undefined): string {
   if (value == null) return "";
@@ -71,6 +71,13 @@ export async function GET(req: NextRequest) {
         escapeCsv(row.noteType),
         escapeCsv(photoRef1),
         escapeCsv(photoRef2),
+        escapeCsv(row.barcode),
+        escapeCsv(row.nutriscore),
+        escapeCsv(row.nova != null ? String(row.nova) : ""),
+        escapeCsv(row.greenscore),
+        escapeCsv(row.kcalPer100g != null ? String(row.kcalPer100g) : ""),
+        escapeCsv(row.kcalPerPortion != null ? String(row.kcalPerPortion) : ""),
+        escapeCsv(row.ofIncomplete != null ? (row.ofIncomplete ? "1" : "0") : ""),
       ].join(",") + "\n";
   }
 

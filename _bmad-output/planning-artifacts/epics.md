@@ -1,8 +1,10 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
 updatedV1.2: 2026-06-28
+updatedV2: 2026-06-28
+v2StoriesValidated: 2026-06-28
 inputDocuments:
-  - _bmad-output/planning-artifacts/prds/prd-PACAL-2026-06-18/prd.md
+  - _bmad-output/planning-artifacts/prd-consolidated.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/briefs/brief-PACAL-2026-06-18/brief.md
 ---
@@ -32,17 +34,20 @@ FR9: L'utilisateur peut exporter ses entrées en CSV/Excel (période ou historiq
 FR10: L'utilisateur peut générer un rapport PDF pour une période choisie, regroupé jour par jour.
 FR11: Les entrées non-alimentaires apparaissent dans le rapport PDF au même titre que les prises alimentaires, à leur horodatage réel.
 FR12: Le rapport distingue visuellement une valeur estimée d'une valeur mesurée (issue d'un scan).
-FR13: Depuis mobile/tablette, l'utilisateur peut scanner un code-barres via la caméra pour lancer une recherche OpenFoodFacts (non disponible sur Mac/Chrome par ce mécanisme).
-FR14: Une fiche produit trouvée préremplit la description et les calories de l'entrée, statut d'estimation positionné sur "mesuré".
-FR15: PACAL recalcule automatiquement les calories selon la quantité réellement consommée (gestion kcal/100g/100ml vs portion).
-FR16: Le Nutriscore et un lien vers la fiche OpenFoodFacts sont affichés quand disponibles.
-FR17: Sur toute plateforme (y compris Mac/Chrome), l'utilisateur peut saisir un code-barres au clavier comme repli.
-FR18: Une investigation technique (spike) détermine la faisabilité d'un enrichissement Yuka avant tout engagement ferme ; si viable, score/100, lien fiche et remarques santé sont affichés.
-FR19: L'utilisateur définit une cible calorique journalière, modifiable à tout moment.
-FR20: L'utilisateur définit des créneaux horaires configurables (bornes libres), indépendamment de la saisie d'entrée.
-FR21: L'utilisateur fixe un seuil par créneau (kcal absolu ou % de la cible journalière).
-FR22: PACAL calcule, pour chaque créneau et chaque jour, le cumul calorique des entrées dont l'horodatage tombe dans ce créneau — calcul a posteriori, jamais de saisie de créneau.
-FR23: Le cumul du jour est affiché en continu (passif) ; un signal visuel actif apparaît quand un créneau ou le total dépasse son seuil, même si le total journalier reste dans la cible.
+FR13-FR17: *(supersédés par FR36-FR42 — ancienne formulation Lot 2, remplacée par la formulation V2 plus précise et arbitrée)*
+FR18: *(abandonné — API Yuka non publique, investigation conclue)*
+FR19: L'utilisateur définit une cible calorique journalière, modifiable à tout moment. *(V2.5)*
+FR20: L'utilisateur définit des créneaux horaires configurables (bornes libres), indépendamment de la saisie d'entrée. *(V2.5)*
+FR21: L'utilisateur fixe un seuil par créneau (kcal absolu ou % de la cible journalière). *(V2.5)*
+FR22: PACAL calcule, pour chaque créneau et chaque jour, le cumul calorique des entrées dont l'horodatage tombe dans ce créneau — calcul a posteriori. *(V2.5)*
+FR23: Le cumul du jour est affiché en continu (passif) ; signal visuel actif si un créneau ou le total dépasse son seuil. *(V2.5)*
+FR36: Champ optionnel "Code-barres" dans les formulaires de saisie et d'édition. Bouton Scan déclenche la caméra (BarcodeDetector API native, Chrome Android). Saisie manuelle possible sur toute plateforme. Champ éditable après scan. Code-barres persisté en base.
+FR37: Dès qu'un code-barres est disponible, recherche automatique dans OpenFoodFacts (côté serveur via tRPC). Si produit trouvé : enrichissement. Si erreur/timeout (5s)/produit inconnu : message non-bloquant + flag of_incomplete = true. La saisie manuelle reste toujours possible.
+FR38: Affichage des scores sous la forme X·N·Y (nutriscore · nova · greenscore), avec `_` si absent. Colorisation : A/B → vert, C → orange, D/E → rouge pour nutriscore et greenscore ; 1/2 → vert, 3 → orange, 4 → rouge pour nova. Visible dans formulaire, vue détail, PDF. Absent de la liste historique.
+FR39: Si données OpenFoodFacts présentes, les kcal sont recalculées automatiquement à chaque changement de quantité ou d'unité. Règles : g/kg/dl/l → calcul proportionnel depuis kcal/100g ; portion → kcal/portion fixe. Si kcal/portion absent : champ grisé visuellement, affiche `---`, reste éditable. Si l'utilisateur modifie manuellement les kcal, la valeur est verrouillée (recalcul suspendu).
+FR40: Champs persistés en base sur `entries` : barcode, nutriscore, nova, greenscore, kcalPer100g, kcalPerPortion, ofIncomplete. Inclus dans l'export CSV.
+FR41: Entrée marquée of_incomplete = true quand scan lancé mais OpenFoodFacts échoue. Triangle ⚠ orange visible dans la liste historique. Disparaît quand l'édition aboutit à un enrichissement réussi.
+FR42: Vue détail/édition : code-barres en lecture seule (éditable en mode édition), scores X·N·Y colorisés. Rapport PDF : code-barres si présent, scores avec couleurs, mention "(données manuelles)" si of_incomplete.
 
 ### NonFunctional Requirements
 
@@ -58,8 +63,10 @@ NFR4: La saisie d'une entrée simple doit rester perceptiblement instantanée (c
 - **Accès distant et sécurité (résout NFR2)** : Tailscale (paquet officiel Synology, compatible DS923+) comme unique mécanisme d'accès distant — aucune authentification applicative, aucune exposition publique. Les certificats HTTPS Tailscale (`*.ts.net`) doivent être activés sur le nœud NAS *avant* toute fonctionnalité dépendant de la caméra (FR13) — l'accès `getUserMedia` exige un contexte sécurisé même sur le réseau privé.
 - **Stockage des photos** : fichiers sur un volume Docker monté (`/data/photos/`), référencés par chemin dans `entries.photo_path` ; déjà couvert par le job Hyper Backup existant de l'utilisateur (pas de configuration de sauvegarde supplémentaire).
 - **Génération PDF** : bibliothèque `@react-pdf/renderer` (rendu React → PDF, évite un Chrome headless sur le NAS).
-- **Modèle de données** : tables `entries`, `product_references` (liée 1:1 à une entrée scannée), `settings` (ligne unique — cible calorique, créneaux horaires et seuils). Validation par schémas Zod partagés entre tRPC et Drizzle.
-- **Isolement des intégrations externes** : `lib/openfoodfacts.ts` et `lib/yuka.ts` sont les seuls fichiers autorisés à effectuer des appels réseau sortants, toujours côté serveur.
+- **Modèle de données** : table `entries` (toutes les données V1-V2 dont les champs OpenFoodFacts). Table `product_references` abandonnée (décision V2). Table `settings` (créneaux/cible) anticipée pour V2.5. Validation par schémas Zod partagés entre tRPC et Drizzle.
+- **Isolement des intégrations externes** : `lib/openfoodfacts.ts` est le seul fichier autorisé à effectuer des appels réseau sortants vers OpenFoodFacts, toujours côté serveur. `lib/yuka.ts` abandonné.
+- **Bibliothèque scan** : `BarcodeDetector` API native Chrome Android (zéro dépendance). Bouton Scan masqué si API absente. HTTPS requis (certificats Tailscale déjà activés).
+- **Migration V2** : `drizzle/0004_v2_schema.sql` — 7 colonnes nullable sur `pacal_entry` (barcode, nutriscore, nova, greenscore, kcal_per100g, kcal_per_portion, of_incomplete). ⚠ Attention casing Drizzle : `kcalPer100g` → `kcal_per100g` (sans underscore avant `1`).
 - **Aucun framework de test imposé** pour le MVP (différé, non bloquant).
 - **Aucun système d'authentification applicative, de cache, ni de pipeline CI/CD formel** requis à ce stade — décisions explicites, pas des oublis.
 
@@ -72,15 +79,15 @@ de référence comportementale pour les stories ci-dessous.
 
 ### FR Coverage Map
 
-FR1-FR8: Epic 1 — saisie, édition, historique des entrées.
-FR9: Epic 1 — export CSV/Excel + photos.
-FR10-FR12: Epic 1 — rapport PDF.
-FR13-FR17: Epic 2 — scan de code-barres et enrichissement OpenFoodFacts.
-FR18: Epic 2 — investigation Yuka.
-FR19-FR23: Epic 2 — cible calorique et alertes par créneau.
-NFR1-NFR4: couvertes transversalement par Epic 1 (l'infrastructure, l'accès
-distant Tailscale+HTTPS et la vitesse de saisie sont des prérequis du
-chemin de base, pas d'une fonctionnalité du Lot 2).
+FR1-FR8: Epic 1 / V1.0 ✅
+FR9-FR12: Epic 1 / V1.0 ✅
+FR24-FR27: Epic 1 / V1.1 ✅
+FR28-FR35: Epic 1 / V1.2 ✅
+FR13-FR17: Supersédés par FR36-FR42
+FR18: Abandonné (Yuka)
+FR36-FR42: Epic 2 / V2 🔵
+FR19-FR23: Epic 2 / V2.5 🔲
+NFR1-NFR6: couvertes transversalement (infrastructure, Tailscale, vitesse de saisie, caméra Chrome Android).
 
 ## Epic List
 
@@ -95,13 +102,10 @@ exploiter.
 **NFRs covered:** NFR1, NFR2, NFR3, NFR4 (prérequis transversaux : starter
 T3, infrastructure Docker/NAS, Tailscale + HTTPS, stockage photo)
 
-### Epic 2 : Accélérer la saisie et piloter ses apports
-En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut scanner un
-code-barres pour préremplir une entrée plutôt que tout saisir à la main, et
-définir une cible calorique journalière avec des alertes par créneau
-horaire pour repérer une répartition déséquilibrée dans la journée. C'est le
-Lot 2 du PRD — un enrichissement assumé, pas un prérequis du MVP.
-**FRs covered:** FR13, FR14, FR15, FR16, FR17, FR18, FR19, FR20, FR21, FR22, FR23
+### Epic 2 : Accélérer la saisie par scan et enrichissement nutritionnel
+En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut identifier un aliment par son code-barres EAN, récupérer automatiquement ses données nutritionnelles depuis OpenFoodFacts (nutriscore, nova, greenscore, kcal) et enrichir sa saisie sans ressaisie manuelle. Les fiches dont l'enrichissement a échoué sont signalées pour correction ultérieure.
+**FRs covered (V2):** FR36, FR37, FR38, FR39, FR40, FR41, FR42
+**FRs couverts (V2.5 — backlog):** FR19, FR20, FR21, FR22, FR23
 
 ## Epic 1: Capturer et restituer ses prises
 
@@ -418,62 +422,170 @@ So que l'application soit reconnaissable et agréable à utiliser (FR-35).
 
 ---
 
-## Epic 2: Accélérer la saisie et piloter ses apports
+## Epic 2: Accélérer la saisie par scan et enrichissement nutritionnel
 
-En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut scanner un
-code-barres pour préremplir une entrée plutôt que tout saisir à la main, et
-définir une cible calorique journalière avec des alertes par créneau
-horaire pour repérer une répartition déséquilibrée dans la journée.
+En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut identifier un aliment par son code-barres EAN, récupérer automatiquement ses données nutritionnelles (nutriscore, nova, greenscore, kcal) depuis OpenFoodFacts et enrichir sa saisie sans ressaisie manuelle. Les fiches dont l'enrichissement a échoué sont signalées pour correction ultérieure.
 
-### Story 2.1: Scanner un code-barres
+*Décisions d'architecture applicables : BarcodeDetector API native (Chrome Android), appel OpenFoodFacts côté serveur via tRPC `products.lookup`, champs V2 directement sur `entries`, calcul kcal côté client. Voir addendum V2 dans `architecture.md`.*
 
-As a utilisateur,
-I want scanner un code-barres avec mon téléphone, ou le saisir manuellement sur Mac,
-So that je n'aie pas à chercher le produit moi-même (FR13, FR17).
+---
 
-**Acceptance Criteria:**
+### V2 — Stories 2.1 à 2.5 (2026-06-28)
 
-**Given** que je suis sur mobile/tablette, dans le formulaire de saisie
-**When** je déclenche le scanner et présente un code-barres à la caméra
-**Then** une recherche OpenFoodFacts est lancée automatiquement, sans étape manuelle supplémentaire
-**And** sur toute plateforme, y compris Mac/Chrome, je peux saisir le code-barres au clavier pour le même résultat
-
-### Story 2.2: Préremplir une entrée depuis une fiche produit
+### Story 2.1 : Saisie et scan du code-barres EAN
 
 As a utilisateur,
-I want que les informations du produit scanné remplissent automatiquement mon entrée,
-So that je n'aie pas à ressaisir manuellement les calories (FR14, FR15, FR16).
+I want saisir ou scanner un code-barres EAN dans le formulaire de saisie ou d'édition,
+So that je puisse identifier un produit sans le chercher manuellement (FR-36).
 
-**Acceptance Criteria:**
+**Contexte schéma V1.2 (champs existants — read-only pour cette story) :**
+- Constantes : `ENTRY_UNITS = ["g","kg","dl","l","portion"]`, `NOTE_TYPES = ["aliment","médicament","sommeil","autre"]`
+- Champs actifs : `quantity integer`, `unit varchar(10)`, `noteType varchar(20)`, `photoPath1 text`, `photoPath2 text`
+- Cette story ajoute uniquement `barcode varchar(50)` — aucun champ V1.2 ne doit être modifié.
 
-**Given** qu'une recherche OpenFoodFacts a trouvé une fiche produit
-**When** la fiche est appliquée à l'entrée en cours
-**Then** la description et les calories sont préremplies, et le statut d'estimation passe à "mesuré"
-**And** si la fiche exprime les calories au 100g/100ml, modifier la quantité consommée recalcule immédiatement les calories
-**And** le Nutriscore et un lien vers la fiche OpenFoodFacts sont affichés quand disponibles
-**And** la table `product_references` est créée par migration à cette étape, liée 1:1 à une entrée scannée
+**Acceptance Criteria :**
 
-### Story 2.3: Investigation et, si possible, enrichissement Yuka
+**Given** que je suis sur le formulaire de saisie ou d'édition
+**When** le formulaire se charge
+**Then** un champ optionnel "Code-barres" est présent avec un bouton "Scan" à sa droite
+**And** le bouton Scan n'est visible que si `'BarcodeDetector' in window` (Chrome Android) — il est masqué sur Mac Chrome
+
+**Given** que je clique sur "Scan" (Chrome Android, HTTPS)
+**When** la caméra arrière s'active
+**Then** dès qu'un code EAN-13 ou EAN-8 est détecté, le champ "Code-barres" est rempli automatiquement et la caméra s'arrête
+**And** le champ reste éditable pour corriger une lecture imprécise
+
+**Given** que je suis sur n'importe quelle plateforme (y compris Mac Chrome)
+**When** je saisis manuellement un code dans le champ "Code-barres"
+**Then** le code est accepté comme source valide pour la recherche OpenFoodFacts
+
+**And** la colonne `barcode varchar(50)` est ajoutée à `pacal_entry` par migration `drizzle/0004_v2_schema.sql` (nullable, toutes les entrées existantes conservées intactes)
+
+---
+
+### Story 2.2 : Enrichissement automatique depuis OpenFoodFacts
 
 As a utilisateur,
-I want savoir si l'enrichissement Yuka est viable, et en bénéficier si oui,
-So that je dispose d'un signal de qualité supplémentaire sans dépendre d'une source non officielle fragile (FR18).
+I want qu'une fois un code-barres saisi ou scanné, les données nutritionnelles du produit soient récupérées et pré-remplissent mon formulaire,
+So que je n'aie pas à ressaisir les calories et scores manuellement (FR-37, FR-38).
 
-**Acceptance Criteria:**
+**Acceptance Criteria :**
 
-**Given** l'absence d'API publique officielle Yuka
-**When** l'investigation technique est menée
-**Then** une décision documentée (go/no-go) est produite avant tout développement de la fonctionnalité
-**And** si "go", le score Yuka, un lien vers la fiche et les remarques santé éventuelles s'affichent au même endroit que le Nutriscore
-**And** si "no-go", aucune fonctionnalité Yuka n'est exposée, sans impact sur le reste de l'Epic 2
+**Given** qu'un code-barres est disponible dans le formulaire (scan ou saisie manuelle)
+**When** l'appel tRPC `products.lookup` aboutit (produit trouvé dans OpenFoodFacts sous 5s)
+**Then** le formulaire affiche les scores nutritionnels sous la forme X·N·Y (nutriscore · nova · greenscore)
+**And** la colorisation est appliquée : A/B → vert, C → orange, D/E → rouge (nutriscore et greenscore) ; 1/2 → vert, 3 → orange, 4 → rouge (nova)
+**And** les valeurs `kcalPer100g` et `kcalPerPortion` sont stockées dans l'état local du formulaire pour le calcul kcal (story 2.3)
+**And** le statut d'estimation passe automatiquement à "mesuré"
 
-### Story 2.4: Définir une cible calorique et des créneaux horaires
+**Given** qu'un code-barres est disponible
+**When** l'appel échoue (produit inconnu, erreur réseau, timeout 5s)
+**Then** un message non-bloquant informe l'utilisateur ("Produit non trouvé" ou "Connexion indisponible")
+**And** le code-barres reste dans le champ
+**And** `ofIncomplete` est positionné à `true` pour cette entrée
+**And** toute saisie manuelle reste possible sans blocage
+
+**And** les colonnes `nutriscore varchar(2)`, `nova integer`, `greenscore varchar(2)`, `kcal_per100g real`, `kcal_per_portion real` sont ajoutées à `pacal_entry` par la même migration `0004` (nullable)
+**And** un nouveau routeur `src/server/api/routers/products.ts` expose la procédure `lookup(barcode: string)`
+**And** `src/lib/openfoodfacts.ts` implémente l'appel réel avec timeout AbortController 5s et retourne `null` sur toute erreur
+
+---
+
+### Story 2.3 : Calcul automatique des kcal selon la quantité
+
+As a utilisateur,
+I want que les kcal se recalculent automatiquement quand je change la quantité ou l'unité (si des données OpenFoodFacts sont disponibles),
+So que je n'aie pas à faire le calcul moi-même (FR-39).
+
+**Acceptance Criteria :**
+
+**Given** que des données OpenFoodFacts sont présentes dans le formulaire (`kcalPer100g` ou `kcalPerPortion`)
+**When** je modifie le champ Quantité ou l'unité
+**Then** le champ kcal se met à jour automatiquement selon la règle :
+- `g` : `floor(quantité × kcalPer100g / 100)`
+- `kg` : `floor(quantité × 1000 × kcalPer100g / 100)`
+- `dl` : `floor(quantité × 100 × kcalPer100g / 100)`
+- `l` : `floor(quantité × 1000 × kcalPer100g / 100)`
+- `portion` : `floor(kcalPerPortion)` (valeur fixe, quantité ignorée)
+
+**Given** que l'unité est `portion` mais `kcalPerPortion` est absent
+**When** je saisis une quantité
+**Then** le champ kcal est visuellement grisé et affiche `---`
+**And** il reste éditable manuellement
+
+**Given** que le champ kcal a été recalculé automatiquement
+**When** je modifie manuellement la valeur des kcal
+**Then** le recalcul automatique est suspendu pour cette session (valeur verrouillée)
+**And** un indicateur visuel léger signale que la valeur est saisie manuellement
+
+**And** aucune migration de base de données n'est requise pour cette story (calcul purement frontend)
+
+---
+
+### Story 2.4 : Persistance des données OpenFoodFacts et signalement des fiches incomplètes
+
+As a utilisateur,
+I want que les données OpenFoodFacts soient sauvegardées avec chaque entrée et que les fiches dont l'enrichissement a échoué soient signalées dans mon historique,
+So que je puisse les identifier et les corriger ultérieurement (FR-40, FR-41).
+
+**Acceptance Criteria :**
+
+**Given** qu'un enrichissement OpenFoodFacts réussi a été appliqué au formulaire
+**When** j'enregistre l'entrée
+**Then** les champs `barcode`, `nutriscore`, `nova`, `greenscore`, `kcalPer100g`, `kcalPerPortion` sont persistés en base
+**And** `ofIncomplete` est `false` (ou null)
+**And** ces champs apparaissent dans l'export CSV
+
+**Given** qu'un scan a été lancé mais OpenFoodFacts a échoué (`ofIncomplete = true`)
+**When** l'entrée apparaît dans la liste historique
+**Then** un triangle orange ⚠ est visible sur cette ligne (non intrusif, inline)
+**And** le triangle disparaît une fois que l'édition de l'entrée aboutit à un enrichissement réussi
+
+**Given** qu'une entrée n'a pas de code-barres
+**When** elle apparaît dans l'historique
+**Then** aucun triangle ⚠ n'est affiché (le flag ne s'applique qu'aux scans échoués, pas à l'absence de scan)
+
+**And** la colonne `of_incomplete boolean DEFAULT false` est ajoutée à `pacal_entry` par la migration `0004`
+**And** la migration `0004` est la dernière opération à exécuter sur le NAS avant déploiement V2 (elle cumule les 7 colonnes V2)
+
+⚠️ **Mapping Drizzle → SQL à vérifier à la génération :** `kcalPer100g` → `kcal_per100g` (sans underscore avant `100` — règle Drizzle : pas d'underscore devant un chiffre). Valider dans `drizzle/0004_v2_schema.sql` avant merge. Les autres champs (`nova`, `ofIncomplete` → `of_incomplete`, `kcalPerPortion` → `kcal_per_portion`) suivent la règle camelCase standard sans cas particulier.
+
+---
+
+### Story 2.5 : Affichage dans la vue détail et le rapport PDF
+
+As a utilisateur,
+I want voir le code-barres et les scores nutritionnels quand j'ouvre une entrée ou génère un rapport PDF,
+So que je dispose du contexte nutritionnel complet dans mes documents de suivi (FR-42).
+
+**Acceptance Criteria :**
+
+**Given** qu'une entrée a été enrichie depuis OpenFoodFacts
+**When** j'ouvre la vue détail / formulaire d'édition
+**Then** le code-barres est affiché en lecture seule (éditable en mode édition)
+**And** les scores X·N·Y apparaissent avec la colorisation vert/orange/rouge
+
+**Given** que je génère un rapport PDF couvrant des entrées avec et sans données OpenFoodFacts
+**When** le PDF est rendu
+**Then** le code-barres est affiché sur les entrées qui en ont un
+**And** les scores X·N·Y apparaissent avec les couleurs correspondantes (via `StyleSheet` de `@react-pdf/renderer`)
+**And** les entrées avec `ofIncomplete = true` affichent "(données manuelles)" à la place des scores
+
+**And** aucune migration de base de données n'est requise pour cette story
+
+---
+
+## Epic 2 — V2.5 (backlog) : Piloter ses apports caloriques
+
+*Stories ci-dessous reportées en V2.5. Dépendent d'Epic 2 V2 complet.*
+
+### Story 2.6 : Définir une cible calorique et des créneaux horaires *(V2.5)*
 
 As a utilisateur,
 I want définir ma cible calorique journalière et mes créneaux horaires avec leurs seuils,
 So that je puisse ensuite être alerté en cas de déséquilibre (FR19, FR20, FR21).
 
-**Acceptance Criteria:**
+**Acceptance Criteria :**
 
 **Given** que j'accède aux réglages
 **When** je définis une cible calorique journalière et un ou plusieurs créneaux horaires avec leurs bornes et seuils
@@ -481,15 +593,15 @@ So that je puisse ensuite être alerté en cas de déséquilibre (FR19, FR20, FR
 **And** modifier les bornes d'un créneau ne modifie aucune entrée existante
 **And** la table `settings` (ligne unique) est créée par migration à cette étape
 
-### Story 2.5: Être alerté d'un déséquilibre calorique
+### Story 2.7 : Être alerté d'un déséquilibre calorique *(V2.5)*
 
 As a utilisateur,
 I want voir mon cumul calorique du jour et être alerté si un créneau ou le total dépasse son seuil,
 So that je repère un déséquilibre même si je reste dans ma cible globale (FR22, FR23).
 
-**Acceptance Criteria:**
+**Acceptance Criteria :**
 
-**Given** des créneaux et seuils déjà configurés (Story 2.4) et des entrées existantes
+**Given** des créneaux et seuils déjà configurés (Story 2.6) et des entrées existantes
 **When** je consulte l'écran de saisie au cours de la journée
 **Then** le cumul calorique du jour est affiché en continu
 **And** le cumul de chaque créneau est calculé à partir du seul horodatage des entrées, sans qu'aucune saisie ne référence un créneau

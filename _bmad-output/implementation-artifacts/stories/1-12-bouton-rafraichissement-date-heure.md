@@ -1,7 +1,7 @@
 ---
 id: "1.12"
 title: "Bouton de rafraîchissement de la date/heure"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-28"]
 dependencies: []
@@ -35,3 +35,17 @@ So that je peux saisir une deuxième fiche sans me soucier de la date obsolète 
 - Composants concernés : `EntryForm` (saisie) et `EntryEditForm` (édition) dans `pacal/src/`.
 - Aucune migration de base de données.
 - Aucun appel tRPC supplémentaire.
+
+## Implémentation réelle (2026-06-28)
+
+**Composants modifiés :**
+- `src/components/features/entry-form/EntryForm.tsx` — bouton `↺ Maintenant` ajouté à côté du champ `datetime-local`
+- `src/components/features/entry-form/EntryEditForm.tsx` — même bouton, même comportement
+
+**Décision prise :** texte "↺ Maintenant" plutôt qu'une icône seule — plus explicite sur mobile sans nécessiter une bibliothèque d'icônes.
+
+**Implémentation effective :** `setTimestamp(formatDatetimeLocal(new Date()))` au clic. La fonction `formatDatetimeLocal` existait déjà dans les deux composants — réutilisée sans modification.
+
+**Écart par rapport au plan :** la note d'implémentation mentionnait `react-hook-form`, mais le projet utilise du state React natif (`useState`). L'implémentation s'est adaptée sans difficulté.
+
+**Validation :** TypeScript ✓, build ✓, testé en production sur NAS (bouton visible et fonctionnel sur mobile Chrome).

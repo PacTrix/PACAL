@@ -70,6 +70,14 @@ export function EntryList() {
             <div className="flex items-center gap-3 text-xs text-gray-400">
               {entry.calories != null && <span>{entry.calories} kcal</span>}
               {(entry.photoPath1 ?? entry.photoPath2) && <span>📷</span>}
+              {entry.ofIncomplete && entry.barcode && (
+                <span
+                  className="text-orange-500"
+                  title="Enrichissement OpenFoodFacts incomplet — ouvrir pour corriger"
+                >
+                  ⚠
+                </span>
+              )}
             </div>
           </Link>
 

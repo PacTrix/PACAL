@@ -1,7 +1,7 @@
 ---
 id: "1.15"
 title: "Type de note"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-31"]
 dependencies: []
@@ -56,3 +56,25 @@ ALTER TABLE entries ADD COLUMN note_type varchar(20);
 
 ### Rapport PDF
 - Afficher le type de note entre parenthèses ou en label à côté du texte de la note : ex. `[médicament] Doliprane 1g`.
+
+## Implémentation réelle (2026-06-28)
+
+**Fichiers modifiés :**
+- `src/server/db/schema.ts` — `NOTE_TYPES` const + `noteType: d.varchar({ length: 20 })`
+- `src/server/api/routers/entries.ts` — schémas Zod mis à jour
+- `src/components/features/entry-form/EntryForm.tsx` — sélecteur "Type de note" sous la textarea
+- `src/components/features/entry-form/EntryEditForm.tsx` — idem
+- `src/app/api/export/route.ts` — colonne `note_type` ajoutée au CSV
+- `src/lib/pdf.tsx` — affichage `[médicament]` en orange brand avant le texte de la note
+- `drizzle/0002_v12_schema.sql` — inclus dans la migration V1.2
+
+**Migration appliquée sur le NAS :**
+```sql
+ALTER TABLE "pacal_entry" ADD COLUMN "note_type" varchar(20);
+```
+
+**Décision d'UI :** le sélecteur de type de note est placé juste sous la textarea note (pas à côté), pour ne pas compresser la lisibilité sur mobile. L'option vide "Type de note (optionnel)" est le placeholder par défaut.
+
+**Encodage :** `médicament` avec accent — pas de problème PostgreSQL (UTF-8), pas de problème Zod (chaîne littérale). Pas d'encodage spécial requis.
+
+**Validation :** TypeScript ✓, build ✓, migration ✓, testé en production.

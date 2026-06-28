@@ -1,7 +1,7 @@
 ---
 id: "1.19"
 title: "Charte graphique et logo"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-35"]
 dependencies: []
@@ -72,6 +72,22 @@ Dans `RapportPDF` (composant `@react-pdf/renderer`) :
 ### Scope
 - Appliquer la charte à toutes les pages existantes : `/`, `/historique`, `/entrees/[id]`, `/export`, `/rapport`, `/a-propos` (Story 1.16).
 - Priorité : l'en-tête (logo + couleur du titre PACAL) en premier, puis les pages dans l'ordre d'importance UX.
+
+## Implémentation réelle (2026-06-28)
+
+**Fichiers modifiés :**
+- `src/styles/globals.css` — variables Tailwind v4 dans `@theme { --color-brand-orange: #F05C22; --color-brand-marine: #06466D; }`
+- `src/components/ui/Nav.tsx` — titre PACAL en `text-brand-orange`, liens actifs en `text-brand-orange`, logo `<Image>` ajouté
+- `src/app/page.tsx` — titre en `text-brand-orange`
+- `src/lib/pdf.tsx` — couleurs hex appliquées au `StyleSheet`, logo chargé depuis `public/logo.png`
+
+**Note Tailwind v4 :** la syntaxe `tailwind.config.ts` avec `extend.colors` n'est plus utilisée en v4. Les couleurs custom se définissent dans le CSS via `@theme`, utilisables comme classes utilitaires (`text-brand-orange`, `bg-brand-marine`). C'est un écart par rapport aux notes d'implémentation du plan.
+
+**Logo côté PDF :** `LOGO_PATH = path.join(process.cwd(), 'public', 'logo.png')` avec `fs.existsSync()` — le PDF se génère normalement si le fichier est absent (dégradé gracieux).
+
+**Statut logo :** le logo a été partagé par l'utilisateur comme image inline dans la conversation. Il doit être copié manuellement par l'utilisateur dans `pacal/public/logo.png`. La Nav et le PDF dégradent gracieusement si le fichier est absent.
+
+**Validation :** TypeScript ✓, build ✓, testé en production (couleurs visibles sur mobile et desktop). Logo non encore déployé (copie manuelle requise par l'utilisateur).
 
 ### Pré-requis
 - L'utilisateur doit fournir le fichier logo (partagé dans la conversation, à sauvegarder manuellement dans `pacal/public/logo.png`).

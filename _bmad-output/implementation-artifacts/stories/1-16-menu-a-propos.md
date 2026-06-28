@@ -1,7 +1,7 @@
 ---
 id: "1.16"
 title: "Menu 'À propos'"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-32"]
 dependencies: []
@@ -71,6 +71,24 @@ V1.1 (2026-06-26) — Corrections et améliorations post-V1
 V1.0 (2026-06-18) — Version initiale
   - Saisie, historique, édition, photo, export, rapport PDF
 ```
+
+### En-tête
+- Supprimer le bloc version/build sous le titre dans le composant `Nav` ou `Header`.
+
+## Implémentation réelle (2026-06-28)
+
+**Fichiers modifiés/créés :**
+- `src/app/a-propos/page.tsx` — nouvelle page (Server Component)
+- `src/components/ui/Nav.tsx` — lien "À propos" ajouté, sous-titre version supprimé
+
+**Décisions prises :**
+- Lecture de `package.json` via `require('../../../package.json')` dans un Server Component — évite d'injecter des dizaines de variables d'env au build. Fonctionne car Next.js App Router exécute les Server Components côté serveur.
+- PostgreSQL listé comme "runtime" (pas dans package.json) — affiché tel quel dans le tableau stack.
+- Changelog maintenu en dur dans la page (constante `CHANGELOG`) — pas de fichier externe à synchroniser.
+
+**Écart par rapport au plan :** la note d'implémentation suggérait une "page/modal" — implémenté comme une page dédiée `/a-propos` (plus simple, cohérent avec la navigation existante).
+
+**Validation :** TypeScript ✓, build ✓ (page statique pré-rendue), testé en production.
 
 ### En-tête
 - Supprimer le bloc version/build sous le titre dans le composant `Nav` ou `Header`.

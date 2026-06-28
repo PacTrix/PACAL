@@ -18,6 +18,13 @@ export const createEntrySchema = z.object({
   noteType: z.enum(NOTE_TYPES).optional(),
   photoPath1: z.string().optional(),
   photoPath2: z.string().optional(),
+  barcode: z.string().max(50).optional(),
+  nutriscore: z.string().max(2).optional(),
+  nova: z.number().int().min(1).max(4).optional(),
+  greenscore: z.string().max(2).optional(),
+  kcalPer100g: z.number().nonnegative().optional(),
+  kcalPerPortion: z.number().nonnegative().optional(),
+  ofIncomplete: z.boolean().optional(),
 });
 
 export const updateEntrySchema = z.object({
@@ -32,6 +39,13 @@ export const updateEntrySchema = z.object({
   noteType: z.enum(NOTE_TYPES).optional(),
   photoPath1: z.string().nullable().optional(),
   photoPath2: z.string().nullable().optional(),
+  barcode: z.string().max(50).nullable().optional(),
+  nutriscore: z.string().max(2).nullable().optional(),
+  nova: z.number().int().min(1).max(4).nullable().optional(),
+  greenscore: z.string().max(2).nullable().optional(),
+  kcalPer100g: z.number().nonnegative().nullable().optional(),
+  kcalPerPortion: z.number().nonnegative().nullable().optional(),
+  ofIncomplete: z.boolean().nullable().optional(),
 });
 
 export type CreateEntryInput = z.infer<typeof createEntrySchema>;
@@ -71,6 +85,13 @@ export const entriesRouter = createTRPCRouter({
           noteType: input.noteType,
           photoPath1: input.photoPath1,
           photoPath2: input.photoPath2,
+          barcode: input.barcode,
+          nutriscore: input.nutriscore,
+          nova: input.nova,
+          greenscore: input.greenscore,
+          kcalPer100g: input.kcalPer100g,
+          kcalPerPortion: input.kcalPerPortion,
+          ofIncomplete: input.ofIncomplete,
         })
         .returning();
       return entry;
@@ -92,6 +113,13 @@ export const entriesRouter = createTRPCRouter({
           noteType: input.noteType ?? null,
           photoPath1: input.photoPath1 ?? null,
           photoPath2: input.photoPath2 ?? null,
+          barcode: input.barcode ?? null,
+          nutriscore: input.nutriscore ?? null,
+          nova: input.nova ?? null,
+          greenscore: input.greenscore ?? null,
+          kcalPer100g: input.kcalPer100g ?? null,
+          kcalPerPortion: input.kcalPerPortion ?? null,
+          ofIncomplete: input.ofIncomplete ?? null,
         })
         .where(eq(entries.id, input.id))
         .returning();

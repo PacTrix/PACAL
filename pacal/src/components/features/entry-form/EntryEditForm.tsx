@@ -9,6 +9,10 @@ import {
   ENTRY_UNITS,
   NOTE_TYPES,
 } from "~/server/db/schema";
+import { BarcodeScanner } from "./BarcodeScanner";
+import { NutriscoreDisplay } from "./NutriscoreDisplay";
+import type { OFFProduct } from "~/lib/openfoodfacts";
+import { computeKcal, isKcalUnavailable } from "~/lib/kcal";
 
 const formatDatetimeLocal = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -135,6 +139,12 @@ export function EntryEditForm({ id }: { id: number }) {
   const [calories, setCalories] = useState("");
   const [note, setNote] = useState("");
   const [noteType, setNoteType] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [offData, setOffData] = useState<OFFProduct | null>(null);
+  const [offError, setOffError] = useState<string | null>(null);
+  const [ofIncomplete, setOfIncomplete] = useState(false);
+  const [kcalManual, setKcalManual] = useState(true); // true par défaut en edit (valeur existante)
+  const [lookupBarcode, setLookupBarcode] = useState("");
   const [slot1, setSlot1] = useState<SlotState>(emptySlot());
   const [slot2, setSlot2] = useState<SlotState>(emptySlot());
   const [isUploading, setIsUploading] = useState(false);
@@ -150,9 +160,63 @@ export function EntryEditForm({ id }: { id: number }) {
     setCalories(entry.calories != null ? String(entry.calories) : "");
     setNote(entry.note ?? "");
     setNoteType(entry.noteType ?? "");
+    setBarcode(entry.barcode ?? "");
+    // Pré-charger les données OFF existantes si l'entrée en a
+    if (entry.nutriscore ?? entry.nova ?? entry.greenscore) {
+      setOffData({
+        name: entry.description ?? null,
+        nutriscore: entry.nutriscore ?? null,
+        nova: entry.nova ?? null,
+        greenscore: entry.greenscore ?? null,
+        kcalPer100g: entry.kcalPer100g ?? null,
+        kcalPerPortion: entry.kcalPerPortion ?? null,
+      });
+    }
+    setOfIncomplete(entry.ofIncomplete ?? false);
     setSlot1(emptySlot(entry.photoPath1 ?? null));
     setSlot2(emptySlot(entry.photoPath2 ?? null));
   }, [entry]);
+
+  const lookup = api.products.lookup.useQuery(
+    { barcode: lookupBarcode },
+    { enabled: lookupBarcode.length > 0, retry: false }
+  );
+
+  useEffect(() => {
+    if (!lookup.data && !lookup.isError && !lookup.isFetching) return;
+    if (lookup.isFetching) return;
+    if (lookup.isError || lookup.data === null || lookup.data === undefined) {
+      setOffData(null);
+      setOfIncomplete(true);
+      setOffError("Produit non trouvé dans OpenFoodFacts.");
+      return;
+    }
+    const d = lookup.data;
+    setOffData(d);
+    setOfIncomplete(false);
+    setOffError(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookup.data, lookup.isError, lookup.isFetching]);
+
+  const triggerLookup = (code: string) => {
+    const trimmed = code.trim();
+    if (trimmed.length < 4) return;
+    setKcalManual(false); // nouveau lookup = recalcul auto autorisé
+    setLookupBarcode(trimmed);
+  };
+
+  // Calcul automatique des kcal depuis données OFF (FR-39)
+  useEffect(() => {
+    if (!offData || kcalManual) return;
+    const qty = quantity !== "" ? parseFloat(quantity) : null;
+    const computed = computeKcal(qty, unit || null, offData.kcalPer100g, offData.kcalPerPortion);
+    if (computed !== null) {
+      setCalories(String(computed));
+    } else if (isKcalUnavailable(unit || null, offData.kcalPerPortion, true)) {
+      setCalories("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantity, unit, offData, kcalManual]);
 
   const updateEntry = api.entries.update.useMutation({
     onSuccess: () => {
@@ -184,6 +248,13 @@ export function EntryEditForm({ id }: { id: number }) {
         noteType: noteType !== "" ? (noteType as (typeof NOTE_TYPES)[number]) : undefined,
         photoPath1: finalPath1,
         photoPath2: finalPath2,
+        barcode: barcode.trim() || undefined,
+        nutriscore: offData?.nutriscore ?? undefined,
+        nova: offData?.nova ?? undefined,
+        greenscore: offData?.greenscore ?? undefined,
+        kcalPer100g: offData?.kcalPer100g ?? undefined,
+        kcalPerPortion: offData?.kcalPerPortion ?? undefined,
+        ofIncomplete: ofIncomplete || undefined,
       });
     } finally {
       setIsUploading(false);
@@ -290,21 +361,33 @@ export function EntryEditForm({ id }: { id: number }) {
         </div>
       </div>
 
-      {/* Calories */}
+      {/* Calories (FR-39 : calcul auto depuis OFF) */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-calories" className="text-sm font-medium text-brand-marine">
+        <label htmlFor="edit-calories" className="flex items-center gap-2 text-sm font-medium text-brand-marine">
           Calories (kcal){" "}
           <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+          {kcalManual && offData && (
+            <span className="text-xs font-normal text-orange-400">(saisie manuelle)</span>
+          )}
         </label>
-        <input
-          id="edit-calories"
-          type="number"
-          min="0"
-          step="any"
-          value={calories}
-          onChange={(e) => setCalories(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-        />
+        {isKcalUnavailable(unit || null, offData?.kcalPerPortion ?? null, offData !== null) ? (
+          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+            --- (portion inconnue dans OpenFoodFacts)
+          </div>
+        ) : (
+          <input
+            id="edit-calories"
+            type="number"
+            min="0"
+            step="any"
+            value={calories}
+            onChange={(e) => {
+              setCalories(e.target.value);
+              if (offData) setKcalManual(true);
+            }}
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+        )}
       </div>
 
       {/* Note + type de note (FR-31) */}
@@ -329,6 +412,44 @@ export function EntryEditForm({ id }: { id: number }) {
           <option value="">Type de note (optionnel)</option>
           {NOTE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
+      </div>
+
+      {/* Code-barres + enrichissement OpenFoodFacts (FR-36, FR-37, FR-38) */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="edit-barcode" className="text-sm font-medium text-brand-marine">
+          Code-barres{" "}
+          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="edit-barcode"
+            type="text"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onBlur={(e) => triggerLookup(e.target.value)}
+            placeholder="EAN-13 ou EAN-8"
+            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+          <BarcodeScanner onDetected={(code) => { setBarcode(code); triggerLookup(code); }} />
+        </div>
+        {lookup.isFetching && (
+          <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>
+        )}
+        {offError && (
+          <p className="text-xs text-orange-500">{offError}</p>
+        )}
+        {offData && (
+          <div className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5">
+            <NutriscoreDisplay
+              nutriscore={offData.nutriscore}
+              nova={offData.nova}
+              greenscore={offData.greenscore}
+            />
+            {offData.name && (
+              <span className="truncate text-xs text-gray-500">{offData.name}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Deux photos (FR-33) */}

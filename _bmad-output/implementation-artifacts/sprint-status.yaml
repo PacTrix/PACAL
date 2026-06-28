@@ -67,11 +67,16 @@ development_status:
   1-18-duplication-ecran-saisie: done
   1-19-charte-graphique-et-logo: done
 
-  # --- Epic 2 : Accélérer la saisie et piloter ses apports ---
-  epic-2: backlog
-  2-1-scanner-un-code-barres: backlog
-  2-2-preremplir-une-entree-depuis-une-fiche-produit: backlog
-  2-3-investigation-et-si-possible-enrichissement-yuka: backlog
-  2-4-definir-une-cible-calorique-et-des-creneaux-horaires: backlog
-  2-5-etre-alerte-dun-desequilibre-calorique: backlog
+  epic-1-v12-retrospective: done
+
+  # --- Epic 2 : Accélérer la saisie par scan et enrichissement nutritionnel (V2) ---
+  epic-2: in-progress
+  2-1-saisie-et-scan-du-code-barres-ean: review
+  2-2-enrichissement-automatique-depuis-openfoodfacts: review
+  2-3-calcul-automatique-des-kcal-selon-la-quantite: review
+  2-4-persistance-openfoodfacts-et-flag-of-incomplete: review
+  2-5-affichage-vue-detail-et-rapport-pdf: review
+  # V2.5 backlog
+  2-6-cible-calorique-et-creneaux-horaires: backlog
+  2-7-alertes-desequilibre-calorique: backlog
   epic-2-retrospective: optional

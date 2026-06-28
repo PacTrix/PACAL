@@ -1,7 +1,7 @@
 ---
 id: "1.18"
 title: "Duplication → écran de saisie prérempli"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-34"]
 dependencies: ["1.14", "1.15", "1.17"]
@@ -61,3 +61,22 @@ Le composant `EntryForm` lit ces query params (via `useSearchParams`) pour pré-
 ### EntryForm
 - Lire les query params au montage et pré-remplir les champs correspondants.
 - Ne pas affecter le comportement normal (formulaire vierge) si aucun query param n'est présent.
+
+## Implémentation réelle (2026-06-28)
+
+**Fichiers modifiés :**
+- `src/components/features/entry-history/EntryList.tsx` — `handleDuplicate` remplacé : plus de `mutate`, navigation via `router.push('/?...')`
+- `src/components/features/entry-form/EntryForm.tsx` — `useSearchParams()` ajouté pour lire les query params de duplication
+- `src/app/page.tsx` — `EntryForm` enveloppé dans `<Suspense>` (requis par Next.js 15 quand `useSearchParams` est utilisé dans un composant enfant)
+
+**Obstacle rencontré :** Next.js 15 exige que tout composant utilisant `useSearchParams()` soit enveloppé dans un `<Suspense>` côté page, sinon le build échoue avec :
+```
+useSearchParams() should be wrapped in a suspense boundary at page "/"
+```
+Corrigé en ajoutant `<Suspense>` dans `src/app/page.tsx`.
+
+**Décision d'implémentation :** l'approche query params (URL) a été retenue comme prévu. Avantages confirmés : pas de state global, pas de contexte React, pas de localStorage intermédiaire. La longueur de l'URL n'a pas posé de problème en pratique.
+
+**Champs transmis par query params :** `condition`, `description`, `quantity`, `unit`, `calories`, `note`, `noteType` (les photos ne sont jamais transmises — conforme au FR-34).
+
+**Validation :** TypeScript ✓, build ✓ (après ajout Suspense), testé en production (la duplication ouvre bien le formulaire pré-rempli).

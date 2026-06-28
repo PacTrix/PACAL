@@ -51,6 +51,13 @@ export const entries = createTable(
     noteType: d.varchar({ length: 20 }),
     photoPath1: d.text(),
     photoPath2: d.text(),
+    barcode: d.varchar({ length: 50 }),
+    nutriscore: d.varchar({ length: 2 }),
+    nova: d.integer(),
+    greenscore: d.varchar({ length: 2 }),
+    kcalPer100g: d.real(),
+    kcalPerPortion: d.real(),
+    ofIncomplete: d.boolean().default(false),
     createdAt: d
       .timestamp({ withTimezone: true })
       .$defaultFn(() => new Date())

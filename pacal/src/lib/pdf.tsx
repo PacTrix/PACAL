@@ -26,6 +26,13 @@ type Entry = {
   noteType: string | null;
   photoPath1: string | null;
   photoPath2: string | null;
+  barcode: string | null;
+  nutriscore: string | null;
+  nova: number | null;
+  greenscore: string | null;
+  kcalPer100g: number | null;
+  kcalPerPortion: number | null;
+  ofIncomplete: boolean | null;
 };
 
 const BRAND_ORANGE = "#F05C22";
@@ -150,6 +157,34 @@ const styles = StyleSheet.create({
     borderTopColor: "#e5e7eb",
     paddingTop: 4,
   },
+  offRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 2,
+    gap: 4,
+  },
+  offBarcode: {
+    fontSize: 8,
+    color: "#6b7280",
+    marginRight: 6,
+  },
+  offScore: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+  },
+  offSep: {
+    fontSize: 8,
+    color: "#9ca3af",
+  },
+  offIncomplete: {
+    fontSize: 8,
+    color: "#f97316",
+    fontFamily: "Helvetica-Oblique",
+  },
+  scoreGreen: { color: "#16a34a" },
+  scoreOrange: { color: "#f97316" },
+  scoreRed: { color: "#dc2626" },
+  scoreGray: { color: "#9ca3af" },
 });
 
 function formatTime(date: Date): string {
@@ -176,6 +211,51 @@ function groupByDay(items: Entry[]): [string, Entry[]][] {
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function nutriscoreStyle(grade: string | null) {
+  if (!grade) return styles.scoreGray;
+  const g = grade.toLowerCase();
+  if (g === "a" || g === "b") return styles.scoreGreen;
+  if (g === "c") return styles.scoreOrange;
+  return styles.scoreRed;
+}
+
+function novaStyle(group: number | null) {
+  if (group === null) return styles.scoreGray;
+  if (group <= 2) return styles.scoreGreen;
+  if (group === 3) return styles.scoreOrange;
+  return styles.scoreRed;
+}
+
+function OFFRow({ entry }: { entry: Entry }) {
+  const hasScores = entry.nutriscore ?? entry.nova ?? entry.greenscore;
+  if (!entry.barcode && !hasScores && !entry.ofIncomplete) return null;
+
+  return (
+    <View style={styles.offRow}>
+      {entry.barcode ? (
+        <Text style={styles.offBarcode}>EAN: {entry.barcode}</Text>
+      ) : null}
+      {entry.ofIncomplete && !hasScores ? (
+        <Text style={styles.offIncomplete}>(données manuelles)</Text>
+      ) : hasScores ? (
+        <>
+          <Text style={[styles.offScore, nutriscoreStyle(entry.nutriscore)]}>
+            {entry.nutriscore?.toUpperCase() ?? "_"}
+          </Text>
+          <Text style={styles.offSep}>·</Text>
+          <Text style={[styles.offScore, novaStyle(entry.nova)]}>
+            {entry.nova !== null ? String(entry.nova) : "_"}
+          </Text>
+          <Text style={styles.offSep}>·</Text>
+          <Text style={[styles.offScore, nutriscoreStyle(entry.greenscore)]}>
+            {entry.greenscore?.toUpperCase() ?? "_"}
+          </Text>
+        </>
+      ) : null}
+    </View>
+  );
 }
 
 function quantityLabel(quantity: number | null, unit: string | null): string {
@@ -236,6 +316,8 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
                     <View style={styles.colContent}>
                       <Text style={styles.condition}>{conditionLabel}</Text>
                       {entry.description ? <Text style={styles.description}>{entry.description}</Text> : null}
+
+                      <OFFRow entry={entry} />
 
                       {(qLabel || entry.calories != null) ? (
                         <View style={styles.metrics}>

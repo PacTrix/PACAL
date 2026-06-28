@@ -10,6 +10,10 @@ import {
   ENTRY_UNITS,
   NOTE_TYPES,
 } from "~/server/db/schema";
+import { BarcodeScanner } from "./BarcodeScanner";
+import { NutriscoreDisplay } from "./NutriscoreDisplay";
+import type { OFFProduct } from "~/lib/openfoodfacts";
+import { computeKcal, isKcalUnavailable } from "~/lib/kcal";
 
 const LAST_CONTEXT_KEY = "pacal_last_context";
 
@@ -141,10 +145,57 @@ export function EntryForm() {
   const [calories, setCalories] = useState(searchParams.get("calories") ?? "");
   const [note, setNote] = useState(searchParams.get("note") ?? "");
   const [noteType, setNoteType] = useState(searchParams.get("noteType") ?? "");
+  const [barcode, setBarcode] = useState(searchParams.get("barcode") ?? "");
+  const [offData, setOffData] = useState<OFFProduct | null>(null);
+  const [offError, setOffError] = useState<string | null>(null);
+  const [ofIncomplete, setOfIncomplete] = useState(false);
+  const [kcalManual, setKcalManual] = useState(false);
   const [photo1, setPhoto1] = useState<PhotoSlot>(emptySlot());
   const [photo2, setPhoto2] = useState<PhotoSlot>(emptySlot());
   const [isUploading, setIsUploading] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [lookupBarcode, setLookupBarcode] = useState("");
+  const lookup = api.products.lookup.useQuery(
+    { barcode: lookupBarcode },
+    { enabled: lookupBarcode.length > 0, retry: false }
+  );
+
+  useEffect(() => {
+    if (!lookup.data && !lookup.isError && !lookup.isFetching) return;
+    if (lookup.isFetching) return;
+    if (lookup.isError || lookup.data === null || lookup.data === undefined) {
+      setOffData(null);
+      setOfIncomplete(true);
+      setOffError("Produit non trouvé dans OpenFoodFacts.");
+      return;
+    }
+    const d = lookup.data;
+    setOffData(d);
+    setOfIncomplete(false);
+    setOffError(null);
+    if (d.name && !description) setDescription(d.name);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookup.data, lookup.isError, lookup.isFetching]);
+
+  const triggerLookup = (code: string) => {
+    const trimmed = code.trim();
+    if (trimmed.length < 4) return;
+    setLookupBarcode(trimmed);
+  };
+
+  // Calcul automatique des kcal depuis données OFF (FR-39)
+  useEffect(() => {
+    if (!offData || kcalManual) return;
+    const qty = quantity !== "" ? parseFloat(quantity) : null;
+    const computed = computeKcal(qty, unit || null, offData.kcalPer100g, offData.kcalPerPortion);
+    if (computed !== null) {
+      setCalories(String(computed));
+    } else if (isKcalUnavailable(unit || null, offData.kcalPerPortion, true)) {
+      setCalories("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantity, unit, offData, kcalManual]);
 
   // Mise à jour du contexte depuis localStorage si pas de duplication en cours
   useEffect(() => {
@@ -166,6 +217,12 @@ export function EntryForm() {
       setCalories("");
       setNote("");
       setNoteType("");
+      setBarcode("");
+      setOffData(null);
+      setOffError(null);
+      setOfIncomplete(false);
+      setLookupBarcode("");
+      setKcalManual(false);
       if (photo1.previewUrl) URL.revokeObjectURL(photo1.previewUrl);
       if (photo2.previewUrl) URL.revokeObjectURL(photo2.previewUrl);
       setPhoto1(emptySlot());
@@ -196,6 +253,13 @@ export function EntryForm() {
         noteType: noteType !== "" ? (noteType as (typeof NOTE_TYPES)[number]) : undefined,
         photoPath1: path1,
         photoPath2: path2,
+        barcode: barcode.trim() || undefined,
+        nutriscore: offData?.nutriscore ?? undefined,
+        nova: offData?.nova ?? undefined,
+        greenscore: offData?.greenscore ?? undefined,
+        kcalPer100g: offData?.kcalPer100g ?? undefined,
+        kcalPerPortion: offData?.kcalPerPortion ?? undefined,
+        ofIncomplete: ofIncomplete || undefined,
       });
 
       // Persister le dernier contexte (FR-29)
@@ -308,22 +372,34 @@ export function EntryForm() {
         </div>
       </div>
 
-      {/* Calories */}
+      {/* Calories (FR-39 : calcul auto depuis OFF) */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="calories" className="text-sm font-medium text-brand-marine">
+        <label htmlFor="calories" className="flex items-center gap-2 text-sm font-medium text-brand-marine">
           Calories (kcal){" "}
           <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+          {kcalManual && offData && (
+            <span className="text-xs font-normal text-orange-400">(saisie manuelle)</span>
+          )}
         </label>
-        <input
-          id="calories"
-          type="number"
-          min="0"
-          step="any"
-          value={calories}
-          onChange={(e) => setCalories(e.target.value)}
-          placeholder="0"
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-        />
+        {isKcalUnavailable(unit || null, offData?.kcalPerPortion ?? null, offData !== null) ? (
+          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
+            --- (portion inconnue dans OpenFoodFacts)
+          </div>
+        ) : (
+          <input
+            id="calories"
+            type="number"
+            min="0"
+            step="any"
+            value={calories}
+            onChange={(e) => {
+              setCalories(e.target.value);
+              if (offData) setKcalManual(true);
+            }}
+            placeholder="0"
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+        )}
       </div>
 
       {/* Note + type de note (FR-31) */}
@@ -351,6 +427,44 @@ export function EntryForm() {
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
+      </div>
+
+      {/* Code-barres + enrichissement OpenFoodFacts (FR-36, FR-37, FR-38) */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="barcode" className="text-sm font-medium text-brand-marine">
+          Code-barres{" "}
+          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="barcode"
+            type="text"
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            onBlur={(e) => triggerLookup(e.target.value)}
+            placeholder="EAN-13 ou EAN-8"
+            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+          <BarcodeScanner onDetected={(code) => { setBarcode(code); triggerLookup(code); }} />
+        </div>
+        {lookup.isFetching && (
+          <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>
+        )}
+        {offError && (
+          <p className="text-xs text-orange-500">{offError}</p>
+        )}
+        {offData && (
+          <div className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5">
+            <NutriscoreDisplay
+              nutriscore={offData.nutriscore}
+              nova={offData.nova}
+              greenscore={offData.greenscore}
+            />
+            {offData.name && (
+              <span className="truncate text-xs text-gray-500">{offData.name}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Photo 1 + Photo 2 (FR-33) */}

@@ -1,7 +1,7 @@
 ---
 id: "1.17"
 title: "Deux photos par fiche"
-status: "à démarrer"
+status: "done"
 epic: "Epic 1 — V1.2"
 fr: ["FR-33"]
 dependencies: []
@@ -75,3 +75,43 @@ La route existante gère déjà un fichier unique. Il faut la faire accepter un 
 
 ### Suppression
 - Dans le routeur `entries.delete`, supprimer les deux fichiers (`photo_path_1` et `photo_path_2`).
+
+## Implémentation réelle (2026-06-28)
+
+**Fichiers modifiés :**
+- `src/server/db/schema.ts` — `photoPath: d.text()` → `photoPath1: d.text()` + `photoPath2: d.text()`
+- `src/server/api/routers/entries.ts` — schémas Zod, mutations create/update/delete
+- `src/components/features/entry-form/EntryForm.tsx` — composant `PhotoWidget` réutilisable, instancié deux fois
+- `src/components/features/entry-form/EntryEditForm.tsx` — idem + gestion état `SlotState`
+- `src/app/api/export/route.ts` — deux colonnes photo dans le CSV, nommage `{timestamp}_1.jpg` / `_2.jpg`
+- `src/lib/pdf.tsx` — boucle sur `[photoPath1, photoPath2]` pour afficher jusqu'à deux vignettes
+- `drizzle/0002_v12_schema.sql` — migration SQL créée manuellement
+
+**Migration appliquée sur le NAS :**
+```sql
+ALTER TABLE "pacal_entry" RENAME COLUMN "photo_path" TO "photo_path_1";
+ALTER TABLE "pacal_entry" ADD COLUMN "photo_path_2" text;
+```
+
+**Architecture du composant photo :** un composant `PhotoWidget` a été extrait pour éviter la duplication. Il encapsule les deux inputs (`capture` + galerie), la preview, et les boutons Changer/Retirer. L'`EntryEditForm` utilise un type `SlotState` plus riche (gestion de la photo existante + nouvelle photo).
+
+---
+
+## ⚠️ Incident post-déploiement (2026-06-28)
+
+**Symptôme :** "Erreur lors de l'enregistrement" à chaque tentative de création d'entrée. L'application refusait d'enregistrer toute nouvelle saisie après déploiement V1.2.
+
+**Diagnostic :** les logs conteneur montraient `[TRPC] entries.create took 39ms` sans stack trace d'erreur. La cause n'était pas dans les logs mais dans un mismatch silencieux entre le nom de colonne en base et le nom généré par Drizzle ORM.
+
+**Cause racine :** Drizzle ORM avec `casing: 'snake_case'` convertit les noms camelCase en snake_case en n'insérant un underscore **que devant les lettres majuscules** (pas devant les chiffres). Conséquence :
+- `photoPath1` → Drizzle génère `photo_path1` (sans underscore avant `1`)
+- La migration SQL avait créé la colonne `photo_path_1` (avec underscore avant `1`)
+- L'INSERT échouait avec "column photo_path1 does not exist" — erreur catchée en prod sans stack trace visible
+
+**Correctif :** migration 0003 renommant les colonnes pour correspondre à ce que Drizzle génère réellement :
+```sql
+ALTER TABLE "pacal_entry" RENAME COLUMN "photo_path_1" TO "photo_path1";
+ALTER TABLE "pacal_entry" RENAME COLUMN "photo_path_2" TO "photo_path2";
+```
+
+**Leçon documentée dans `architecture.md` :** ne jamais terminer un nom de champ Drizzle par un chiffre si on s'attend à un underscore avant ce chiffre dans le nom de colonne SQL. Utiliser un suffixe alphabétique ou nommer explicitement la colonne via `d.text("photo_path_1")`.
