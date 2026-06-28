@@ -292,6 +292,17 @@ story d'implémentation.*
   de base de données à créer.
 - Volumes Docker : un volume pour les photos (`/data/photos/`), monté dans
   le conteneur PACAL.
+- **Nommage des colonnes avec `casing: 'snake_case'` (note ajoutée le 28/06/2026) :**
+  Drizzle ORM avec `casing: 'snake_case'` ne préfixe d'un underscore que les
+  **lettres majuscules**, pas les chiffres. Conséquence : `photoPath1` →
+  `photo_path1` (sans underscore avant le `1`), et non `photo_path_1`. Les
+  noms de colonnes dans les migrations SQL doivent correspondre exactement à
+  ce que Drizzle génère, pas à ce qu'on anticipe intuitivement. Règle à
+  retenir : **ne jamais terminer un nom de champ Drizzle par un chiffre** si
+  on s'attend à un underscore avant ce chiffre dans la colonne SQL — utiliser
+  plutôt un suffixe alphabétique (`photoPathA`/`photoPathB`) ou nommer
+  explicitement la colonne (`d.text("photo_path_1")`). Correctif appliqué en
+  migration 0003 (renommage `photo_path_1` → `photo_path1`).
 - **Permissions du volume photos (note ajoutée le 28/06/2026) :** sur
   Synology, un volume monté hérite des permissions du dossier réel côté NAS,
   qui ne correspondent pas forcément à l'utilisateur `nextjs` (uid 1001)
