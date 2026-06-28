@@ -12,6 +12,15 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+# Reçus depuis docker-compose (build.args) — relayés en NEXT_PUBLIC_* pour
+# être inlinés au build par Next.js. Sans ces deux lignes, les build-args
+# de docker-compose.yml n'atteignent jamais le process `next build` et
+# l'en-tête affiche une version vide quelle que soit la commande utilisée.
+ARG APP_VERSION=dev
+ARG BUILD_DATE=inconnue
+ENV NEXT_PUBLIC_APP_VERSION=$APP_VERSION
+ENV NEXT_PUBLIC_BUILD_DATE=$BUILD_DATE
+
 # Sauter la validation des variables d'env au build
 ENV SKIP_ENV_VALIDATION=1
 RUN pnpm build
