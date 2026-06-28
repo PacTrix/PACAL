@@ -1,5 +1,6 @@
 ---
 stepsCompleted: [1, 2, 3, 4]
+updatedV1.2: 2026-06-28
 inputDocuments:
   - _bmad-output/planning-artifacts/prds/prd-PACAL-2026-06-18/prd.md
   - _bmad-output/planning-artifacts/architecture.md
@@ -286,6 +287,134 @@ So que je peux identifier visuellement les prises sans ouvrir l'export séparém
 **And** une entrée avec photo affiche une vignette d'environ 2 cm de hauteur dans la colonne droite, avec le ratio d'aspect préservé
 **And** une entrée sans photo laisse la colonne droite vide (pas de placeholder ni d'icône)
 **And** la vignette ne provoque pas de saut de page intempestif
+
+---
+
+### V1.2 — Expérience de saisie et identité visuelle (2026-06-28)
+
+*Stories 1.12 à 1.19 correspondent aux FR-28 à FR-35 de l'addendum PRD V1.2.
+Toutes les stories migrations (1.14, 1.15, 1.17) doivent précéder les stories
+qui dépendent des nouveaux champs. La story 1.19 (charte graphique) peut
+s'exécuter en parallèle des autres.*
+
+### Story 1.12 : Bouton de rafraîchissement de la date/heure
+
+As a utilisateur,
+I want pouvoir remettre la date/heure à l'instant courant d'un clic,
+So that je peux saisir une deuxième fiche sans me soucier de la date obsolète dans le formulaire (FR-28).
+
+**Acceptance Criteria :**
+
+**Given** que je suis sur le formulaire de saisie ou d'édition
+**When** je clique sur le bouton "Actualiser la date/heure"
+**Then** le champ date/heure se met à jour à l'instant courant (à la seconde)
+**And** le formulaire n'est pas soumis
+
+### Story 1.13 : Pré-remplir le dernier contexte saisi
+
+As a utilisateur,
+I want que le champ "contexte" soit pré-rempli avec ma dernière valeur utilisée,
+So que je n'aie pas à le resélectionner systématiquement (FR-29).
+
+**Acceptance Criteria :**
+
+**Given** que j'ai déjà enregistré au moins une entrée
+**When** j'ouvre le formulaire de nouvelle saisie
+**Then** le champ contexte affiche la dernière valeur que j'avais sélectionnée
+**And** si aucune entrée n'existe, le comportement actuel est conservé
+
+### Story 1.14 : Remplacer "poids" par "quantité + unité"
+
+As a utilisateur,
+I want saisir une quantité entière avec son unité (g, kg, dl, l, portion),
+So que le suivi soit plus précis et pertinent selon ce que je consomme (FR-30).
+
+**Acceptance Criteria :**
+
+**Given** la migration Drizzle exécutée (renommage `weight` → `quantity` entier + nouvelle colonne `unit` varchar)
+**When** je saisis une nouvelle entrée ou modifie une entrée existante
+**Then** le champ "Poids estimé" est remplacé par "Quantité" (entier) et un sélecteur "Unité" (g, kg, dl, l, portion)
+**And** les deux champs sont optionnels
+**And** l'export CSV reflète les colonnes `quantity` et `unit` (sans `weight`)
+**And** le rapport PDF affiche "X g", "X portion", etc., ou la valeur seule si pas d'unité
+
+### Story 1.15 : Type de note
+
+As a utilisateur,
+I want qualifier ma note avec un type (aliment, médicament, sommeil, autre),
+So que je puisse catégoriser mes entrées sans ambiguïté dans le rapport (FR-31).
+
+**Acceptance Criteria :**
+
+**Given** la migration Drizzle exécutée (colonne `note_type` varchar nullable)
+**When** je saisis ou modifie une entrée
+**Then** un sélecteur "Type de note" optionnel est disponible avec les valeurs : aliment, médicament, sommeil, autre
+**And** le champ peut rester vide sans erreur de validation
+**And** le type de note est présent dans l'export CSV et dans le rapport PDF
+
+### Story 1.16 : Menu "À propos"
+
+As a utilisateur,
+I want accéder à un écran "À propos" depuis la navigation,
+So que j'aie les informations techniques de l'instance en un seul endroit (FR-32).
+
+**Acceptance Criteria :**
+
+**Given** que je suis sur n'importe quelle page
+**When** je clique sur "À propos" dans la navigation
+**Then** j'accède à une page affichant : version + date de build, stack technique avec versions npm, changelog succinct
+**And** la version sous le titre PACAL (Story 1.9) est supprimée
+**And** en l'absence des variables d'environnement de build, la page s'affiche sans erreur
+
+### Story 1.17 : Deux photos par fiche
+
+As a utilisateur,
+I want pouvoir attacher jusqu'à deux photos indépendantes à une entrée,
+So que je puisse photographier à la fois le plat et sa fiche descriptive (FR-33).
+
+**Acceptance Criteria :**
+
+**Given** la migration Drizzle exécutée (remplacement de `photo_path` par `photo_path_1` et `photo_path_2`, nullable)
+**When** je saisis ou modifie une entrée
+**Then** deux zones de capture indépendantes sont disponibles (appareil photo ou galerie + preview + suppression pour chacune)
+**And** chaque zone est optionnelle et indépendante
+**And** l'export ZIP inclut les deux photos si elles existent
+**And** le rapport PDF affiche jusqu'à deux vignettes par entrée
+**And** la suppression d'une entrée supprime les deux fichiers photos associés
+
+### Story 1.18 : Duplication → écran de saisie prérempli
+
+As a utilisateur,
+I want que la duplication ouvre un formulaire pré-rempli plutôt que de créer directement,
+So que je puisse ajuster les champs avant d'enregistrer (FR-34).
+
+**Acceptance Criteria :**
+
+**Given** que je suis sur la vue historique
+**When** je clique sur "Dupliquer" pour une entrée
+**Then** le formulaire de saisie s'ouvre, pré-rempli avec les champs de l'entrée source (description, quantité, unité, calories, contexte, note, type de note)
+**And** la date/heure est celle de l'instant courant (pas celle de l'entrée source)
+**And** les champs photo sont vides (les photos ne sont pas reprises)
+**And** l'entrée source reste inchangée
+**And** si j'annule, aucune entrée n'est créée
+
+### Story 1.19 : Charte graphique et logo
+
+As a utilisateur,
+I want retrouver une identité visuelle cohérente avec ma palette de couleurs et mon logo,
+So que l'application soit reconnaissable et agréable à utiliser (FR-35).
+
+**Acceptance Criteria :**
+
+**Given** que je navigue sur n'importe quelle page de l'application
+**When** la page se charge
+**Then** les titres (h1–h3, labels de section) s'affichent en `#F05C22`
+**And** les textes courants et champs de saisie s'affichent en `#06466D`
+**And** le logo (`public/logo.png`) est visible dans l'en-tête à côté du titre "PACAL"
+
+**Given** que je génère un rapport PDF
+**When** le PDF est rendu
+**Then** le logo est affiché en en-tête du document PDF
 
 ---
 

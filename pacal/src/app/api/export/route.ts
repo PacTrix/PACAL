@@ -13,7 +13,7 @@ const getPhotosDir = () =>
     : path.join(process.cwd(), "data", "photos");
 
 const CSV_HEADER =
-  "id,timestamp,condition,description,weight_g,calories,estimation_status,note,photo_file\n";
+  "id,timestamp,condition,description,quantity,unit,calories,estimation_status,note,note_type,photo_file_1,photo_file_2\n";
 
 function escapeCsv(value: string | null | undefined): string {
   if (value == null) return "";
@@ -24,10 +24,9 @@ function escapeCsv(value: string | null | undefined): string {
   return str;
 }
 
-function toPhotoFilename(timestamp: Date, originalPath: string): string {
+function toPhotoFilename(timestamp: Date, originalPath: string, slot: number): string {
   const ext = path.extname(originalPath).toLowerCase() || ".jpg";
-  // Replace colons so the filename is valid on Windows
-  return timestamp.toISOString().replace(/:/g, "-") + ext;
+  return timestamp.toISOString().replace(/:/g, "-") + `_${slot}` + ext;
 }
 
 export async function GET(req: NextRequest) {
@@ -41,25 +40,22 @@ export async function GET(req: NextRequest) {
 
   const rows =
     conditions.length > 0
-      ? await db
-          .select()
-          .from(entries)
-          .where(and(...conditions))
-          .orderBy(asc(entries.timestamp))
+      ? await db.select().from(entries).where(and(...conditions)).orderBy(asc(entries.timestamp))
       : await db.select().from(entries).orderBy(asc(entries.timestamp));
 
-  // Build CSV (BOM for Excel compatibility)
   let csv = "﻿" + CSV_HEADER;
   const photoMap = new Map<string, string>(); // originalPath → zipFilename
 
   for (const row of rows) {
-    let photoFile = "";
-    if (row.photoPath) {
-      const originalFilename = row.photoPath.split("/").pop() ?? "";
-      const zipName = toPhotoFilename(new Date(row.timestamp), originalFilename);
-      photoMap.set(row.photoPath, zipName);
-      photoFile = `photos/${zipName}`;
-    }
+    const resolvePhotoRef = (p: string | null, slot: number): string => {
+      if (!p) return "";
+      const zipName = toPhotoFilename(new Date(row.timestamp), p, slot);
+      photoMap.set(p, zipName);
+      return `photos/${zipName}`;
+    };
+
+    const photoRef1 = resolvePhotoRef(row.photoPath1, 1);
+    const photoRef2 = resolvePhotoRef(row.photoPath2, 2);
 
     csv +=
       [
@@ -67,20 +63,19 @@ export async function GET(req: NextRequest) {
         escapeCsv(new Date(row.timestamp).toISOString()),
         escapeCsv(row.condition),
         escapeCsv(row.description),
-        escapeCsv(row.weightG != null ? String(row.weightG) : ""),
+        escapeCsv(row.quantity != null ? String(row.quantity) : ""),
+        escapeCsv(row.unit),
         escapeCsv(row.calories != null ? String(row.calories) : ""),
         escapeCsv(row.estimationStatus),
         escapeCsv(row.note),
-        escapeCsv(photoFile),
+        escapeCsv(row.noteType),
+        escapeCsv(photoRef1),
+        escapeCsv(photoRef2),
       ].join(",") + "\n";
   }
 
-  // Build ZIP entries
   const zippable: Zippable = {
-    "entries.csv": [
-      new TextEncoder().encode(csv),
-      { level: 6 },
-    ],
+    "entries.csv": [new TextEncoder().encode(csv), { level: 6 }],
   };
 
   const photosDir = getPhotosDir();
@@ -91,7 +86,7 @@ export async function GET(req: NextRequest) {
       const data = await readFile(filePath);
       zippable[`photos/${zipName}`] = [new Uint8Array(data), { level: 0 }];
     } catch {
-      // Photo missing on disk — skip it, CSV reference stays
+      // Photo absente du volume — skip
     }
   }
 

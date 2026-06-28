@@ -1,5 +1,5 @@
 # generated: 2026-06-26
-# last_updated: 2026-06-26
+# last_updated: 2026-06-28
 # project: PACAL
 # project_key: NOKEY
 # tracking_system: file-system
@@ -14,7 +14,7 @@
 #
 # Story Status:
 #   - backlog: Story only exists in epic file
-#   - ready-for-dev: Story file created in stories folder
+#   - done: Story file created in stories folder
 #   - in-progress: Developer actively working on implementation
 #   - review: Ready for code review
 #   - done: Story completed
@@ -26,7 +26,8 @@
 # WORKFLOW NOTES:
 # ===============
 # - V1.0 (stories 1.1–1.8) : toutes complétées, application déployée sur NAS
-# - V1.1 (stories 1.9–1.11) : backlog, à implémenter
+# - V1.1 (stories 1.9–1.11) : toutes complétées
+# - V1.2 (stories 1.12–1.19) : done
 
 generated: 2026-06-26
 last_updated: 2026-06-26
@@ -55,6 +56,16 @@ development_status:
   1-11-vignette-photo-dans-le-rapport-pdf: done
 
   epic-1-retrospective: done
+
+  # V1.2 — stories done (2026-06-28)
+  1-12-bouton-rafraichissement-date-heure: done
+  1-13-pre-remplir-dernier-contexte: done
+  1-14-quantite-et-unite: done
+  1-15-type-de-note: done
+  1-16-menu-a-propos: done
+  1-17-deux-photos-par-fiche: done
+  1-18-duplication-ecran-saisie: done
+  1-19-charte-graphique-et-logo: done
 
   # --- Epic 2 : Accélérer la saisie et piloter ses apports ---
   epic-2: backlog

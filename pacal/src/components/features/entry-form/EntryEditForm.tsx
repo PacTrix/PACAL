@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api } from "~/trpc/react";
-import { ENTRY_CONDITION_LABELS, ENTRY_CONDITIONS } from "~/server/db/schema";
+import {
+  ENTRY_CONDITION_LABELS,
+  ENTRY_CONDITIONS,
+  ENTRY_UNITS,
+  NOTE_TYPES,
+} from "~/server/db/schema";
 
 const formatDatetimeLocal = (date: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -13,8 +18,111 @@ const formatDatetimeLocal = (date: Date): string => {
   );
 };
 
-const extractFilename = (photoPath: string): string =>
-  photoPath.split("/").pop() ?? "";
+const extractFilename = (p: string): string => p.split("/").pop() ?? "";
+
+async function uploadPhoto(file: File): Promise<string | undefined> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/photos", { method: "POST", body: fd });
+  if (!res.ok) return undefined;
+  const data = (await res.json()) as { path: string };
+  return data.path;
+}
+
+type SlotState = {
+  existingPath: string | null; // null = supprimée ou absente
+  newFile: File | null;
+  newPreviewUrl: string | null;
+};
+
+function emptySlot(existing: string | null = null): SlotState {
+  return { existingPath: existing, newFile: null, newPreviewUrl: null };
+}
+
+function PhotoWidget({
+  label,
+  slot,
+  onUpdate,
+}: {
+  label: string;
+  slot: SlotState;
+  onUpdate: (s: SlotState) => void;
+}) {
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+
+  const handleNewFile = (file: File | null) => {
+    if (slot.newPreviewUrl) URL.revokeObjectURL(slot.newPreviewUrl);
+    if (file) {
+      onUpdate({ ...slot, newFile: file, newPreviewUrl: URL.createObjectURL(file) });
+    } else {
+      onUpdate({ ...slot, newFile: null, newPreviewUrl: null });
+    }
+  };
+
+  const handleRemove = () => {
+    if (slot.newPreviewUrl) URL.revokeObjectURL(slot.newPreviewUrl);
+    onUpdate({ existingPath: null, newFile: null, newPreviewUrl: null });
+  };
+
+  const existingFilename = slot.existingPath ? extractFilename(slot.existingPath) : null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium text-brand-marine">
+        {label}{" "}
+        <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+      </span>
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => handleNewFile(e.target.files?.[0] ?? null)}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => handleNewFile(e.target.files?.[0] ?? null)}
+      />
+
+      {slot.newPreviewUrl ? (
+        <div className="flex flex-col gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={slot.newPreviewUrl} alt="Nouvelle photo" className="h-32 w-full rounded border border-gray-200 object-cover" />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm">Changer</button>
+            <button type="button" onClick={handleRemove} className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600">Retirer</button>
+          </div>
+        </div>
+      ) : existingFilename ? (
+        <div className="flex flex-col gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/photos/${existingFilename}`} alt="Photo existante" className="h-32 w-full rounded border border-gray-200 object-cover" />
+          <div className="flex gap-2">
+            <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm">Remplacer</button>
+            <button type="button" onClick={handleRemove} className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600">Supprimer</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <button type="button" onClick={() => cameraRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm">📷 Prendre</button>
+          <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm">🖼 Galerie</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function resolveSlot(slot: SlotState): Promise<string | null> {
+  if (slot.newFile) {
+    return (await uploadPhoto(slot.newFile)) ?? slot.existingPath;
+  }
+  return slot.existingPath;
+}
 
 export function EntryEditForm({ id }: { id: number }) {
   const { data: entry, isPending, isError } = api.entries.getById.useQuery({ id });
@@ -22,87 +130,60 @@ export function EntryEditForm({ id }: { id: number }) {
   const [timestamp, setTimestamp] = useState("");
   const [condition, setCondition] = useState("");
   const [description, setDescription] = useState("");
-  const [weightG, setWeightG] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [unit, setUnit] = useState("");
   const [calories, setCalories] = useState("");
   const [note, setNote] = useState("");
-  // null = conserve la photo existante ; undefined = supprimée ; string = nouveau chemin après upload
-  const [existingPhotoPath, setExistingPhotoPath] = useState<string | null>(null);
-  const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
-  const [newPhotoPreviewUrl, setNewPhotoPreviewUrl] = useState<string | null>(null);
+  const [noteType, setNoteType] = useState("");
+  const [slot1, setSlot1] = useState<SlotState>(emptySlot());
+  const [slot2, setSlot2] = useState<SlotState>(emptySlot());
   const [isUploading, setIsUploading] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-
-  // Pré-remplissage dès que l'entrée est chargée
   useEffect(() => {
     if (!entry) return;
     setTimestamp(formatDatetimeLocal(new Date(entry.timestamp)));
     setCondition(entry.condition);
     setDescription(entry.description ?? "");
-    setWeightG(entry.weightG != null ? String(entry.weightG) : "");
+    setQuantity(entry.quantity != null ? String(entry.quantity) : "");
+    setUnit(entry.unit ?? "");
     setCalories(entry.calories != null ? String(entry.calories) : "");
     setNote(entry.note ?? "");
-    setExistingPhotoPath(entry.photoPath ?? null);
+    setNoteType(entry.noteType ?? "");
+    setSlot1(emptySlot(entry.photoPath1 ?? null));
+    setSlot2(emptySlot(entry.photoPath2 ?? null));
   }, [entry]);
 
   const updateEntry = api.entries.update.useMutation({
     onSuccess: () => {
       setSaved(true);
-      if (newPhotoPreviewUrl) URL.revokeObjectURL(newPhotoPreviewUrl);
-      setNewPhotoFile(null);
-      setNewPhotoPreviewUrl(null);
       setTimeout(() => setSaved(false), 2000);
     },
   });
-
-  const handleNewPhoto = (file: File | null) => {
-    if (newPhotoPreviewUrl) URL.revokeObjectURL(newPhotoPreviewUrl);
-    if (file) {
-      setNewPhotoFile(file);
-      setNewPhotoPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setNewPhotoFile(null);
-      setNewPhotoPreviewUrl(null);
-    }
-  };
-
-  const handleRemovePhoto = () => {
-    handleNewPhoto(null);
-    setExistingPhotoPath(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!condition) return;
 
     setIsUploading(true);
-    let finalPhotoPath: string | null | undefined = existingPhotoPath;
-
     try {
-      if (newPhotoFile) {
-        const fd = new FormData();
-        fd.append("file", newPhotoFile);
-        const res = await fetch("/api/photos", { method: "POST", body: fd });
-        if (res.ok) {
-          const data = (await res.json()) as { path: string };
-          finalPhotoPath = data.path;
-        }
-      } else if (existingPhotoPath === null) {
-        // Photo explicitement supprimée
-        finalPhotoPath = null;
-      }
+      const [finalPath1, finalPath2] = await Promise.all([
+        resolveSlot(slot1),
+        resolveSlot(slot2),
+      ]);
 
       await updateEntry.mutateAsync({
         id,
         timestamp: new Date(timestamp),
         condition: condition as (typeof ENTRY_CONDITIONS)[number],
         description: description.trim() || undefined,
-        weightG: weightG !== "" ? parseFloat(weightG) : undefined,
+        quantity: quantity !== "" ? parseInt(quantity, 10) : undefined,
+        unit: unit !== "" ? (unit as (typeof ENTRY_UNITS)[number]) : undefined,
         calories: calories !== "" ? parseFloat(calories) : undefined,
         note: note.trim() || undefined,
-        photoPath: finalPhotoPath ?? undefined,
+        noteType: noteType !== "" ? (noteType as (typeof NOTE_TYPES)[number]) : undefined,
+        photoPath1: finalPath1,
+        photoPath2: finalPath2,
       });
     } finally {
       setIsUploading(false);
@@ -112,32 +193,38 @@ export function EntryEditForm({ id }: { id: number }) {
   if (isPending) return <p className="text-sm text-gray-500">Chargement…</p>;
   if (isError) return <p className="text-sm text-red-600">Entrée introuvable.</p>;
 
-  const isPending2 = isUploading || updateEntry.isPending;
-
-  // Photo à afficher : nouvelle (preview local) > existante (via serve route)
-  const showNewPreview = !!newPhotoPreviewUrl;
-  const existingFilename = existingPhotoPath ? extractFilename(existingPhotoPath) : null;
+  const isBusy = isUploading || updateEntry.isPending;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Horodatage */}
+      {/* Horodatage + bouton rafraîchissement (FR-28) */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-timestamp" className="text-sm font-medium">
+        <label htmlFor="edit-timestamp" className="text-sm font-medium text-brand-marine">
           Date et heure
         </label>
-        <input
-          id="edit-timestamp"
-          type="datetime-local"
-          value={timestamp}
-          onChange={(e) => setTimestamp(e.target.value)}
-          required
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
-        />
+        <div className="flex gap-2">
+          <input
+            id="edit-timestamp"
+            type="datetime-local"
+            value={timestamp}
+            onChange={(e) => setTimestamp(e.target.value)}
+            required
+            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          />
+          <button
+            type="button"
+            onClick={() => setTimestamp(formatDatetimeLocal(new Date()))}
+            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+            title="Actualiser à maintenant"
+          >
+            ↺ Maintenant
+          </button>
+        </div>
       </div>
 
       {/* Condition */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-condition" className="text-sm font-medium">
+        <label htmlFor="edit-condition" className="text-sm font-medium text-brand-marine">
           Contexte <span className="text-red-500">*</span>
         </label>
         <select
@@ -145,20 +232,18 @@ export function EntryEditForm({ id }: { id: number }) {
           value={condition}
           onChange={(e) => setCondition(e.target.value)}
           required
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
         >
           <option value="">Choisir…</option>
           {ENTRY_CONDITIONS.map((c) => (
-            <option key={c} value={c}>
-              {ENTRY_CONDITION_LABELS[c]}
-            </option>
+            <option key={c} value={c}>{ENTRY_CONDITION_LABELS[c]}</option>
           ))}
         </select>
       </div>
 
       {/* Description */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-description" className="text-sm font-medium">
+        <label htmlFor="edit-description" className="text-sm font-medium text-brand-marine">
           Description{" "}
           <span className="text-xs font-normal text-gray-500">(optionnel)</span>
         </label>
@@ -167,47 +252,64 @@ export function EntryEditForm({ id }: { id: number }) {
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
         />
       </div>
 
-      {/* Poids + calories */}
+      {/* Quantité + unité (FR-30) */}
       <div className="flex gap-3">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="edit-weight" className="text-sm font-medium">
-            Poids (g){" "}
+          <label htmlFor="edit-quantity" className="text-sm font-medium text-brand-marine">
+            Quantité{" "}
             <span className="text-xs font-normal text-gray-500">(optionnel)</span>
           </label>
           <input
-            id="edit-weight"
+            id="edit-quantity"
             type="number"
             min="0"
-            step="any"
-            value={weightG}
-            onChange={(e) => setWeightG(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
+            step="1"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
           />
         </div>
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="edit-calories" className="text-sm font-medium">
-            Calories (kcal){" "}
+          <label htmlFor="edit-unit" className="text-sm font-medium text-brand-marine">
+            Unité{" "}
             <span className="text-xs font-normal text-gray-500">(optionnel)</span>
           </label>
-          <input
-            id="edit-calories"
-            type="number"
-            min="0"
-            step="any"
-            value={calories}
-            onChange={(e) => setCalories(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
-          />
+          <select
+            id="edit-unit"
+            value={unit}
+            onChange={(e) => setUnit(e.target.value)}
+            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          >
+            <option value="">—</option>
+            {ENTRY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+          </select>
         </div>
       </div>
 
-      {/* Note */}
+      {/* Calories */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-note" className="text-sm font-medium">
+        <label htmlFor="edit-calories" className="text-sm font-medium text-brand-marine">
+          Calories (kcal){" "}
+          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
+        </label>
+        <input
+          id="edit-calories"
+          type="number"
+          min="0"
+          step="any"
+          value={calories}
+          onChange={(e) => setCalories(e.target.value)}
+          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+        />
+      </div>
+
+      {/* Note + type de note (FR-31) */}
+      <div className="flex flex-col gap-1">
+        <label htmlFor="edit-note" className="text-sm font-medium text-brand-marine">
           Note{" "}
           <span className="text-xs font-normal text-gray-500">(optionnel)</span>
         </label>
@@ -216,113 +318,29 @@ export function EntryEditForm({ id }: { id: number }) {
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
-          className="rounded border border-gray-300 px-3 py-2 text-sm"
+          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
         />
+        <select
+          id="edit-noteType"
+          value={noteType}
+          onChange={(e) => setNoteType(e.target.value)}
+          className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-500"
+        >
+          <option value="">Type de note (optionnel)</option>
+          {NOTE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
 
-      {/* Photo */}
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">
-          Photo{" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-        </span>
-
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => handleNewPhoto(e.target.files?.[0] ?? null)}
-        />
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => handleNewPhoto(e.target.files?.[0] ?? null)}
-        />
-
-        {showNewPreview ? (
-          <div className="flex flex-col gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={newPhotoPreviewUrl!}
-              alt="Nouvelle photo"
-              className="h-40 w-full rounded border border-gray-200 object-cover"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => galleryInputRef.current?.click()}
-                className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
-              >
-                Changer
-              </button>
-              <button
-                type="button"
-                onClick={handleRemovePhoto}
-                className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600"
-              >
-                Retirer
-              </button>
-            </div>
-          </div>
-        ) : existingFilename ? (
-          <div className="flex flex-col gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/photos/${existingFilename}`}
-              alt="Photo existante"
-              className="h-40 w-full rounded border border-gray-200 object-cover"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => galleryInputRef.current?.click()}
-                className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm"
-              >
-                Remplacer
-              </button>
-              <button
-                type="button"
-                onClick={handleRemovePhoto}
-                className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600"
-              >
-                Supprimer
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
-            >
-              📷 Prendre une photo
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
-            >
-              🖼 Depuis la galerie
-            </button>
-          </div>
-        )}
-      </div>
+      {/* Deux photos (FR-33) */}
+      <PhotoWidget label="Photo 1" slot={slot1} onUpdate={setSlot1} />
+      <PhotoWidget label="Photo 2" slot={slot2} onUpdate={setSlot2} />
 
       <button
         type="submit"
-        disabled={isPending2 || !condition}
-        className="mt-2 rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        disabled={isBusy || !condition}
+        className="mt-2 rounded bg-brand-orange px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
       >
-        {isPending2
-          ? "Enregistrement…"
-          : saved
-            ? "✓ Enregistré"
-            : "Enregistrer les modifications"}
+        {isBusy ? "Enregistrement…" : saved ? "✓ Enregistré" : "Enregistrer les modifications"}
       </button>
 
       {updateEntry.isError && (

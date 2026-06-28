@@ -2,8 +2,8 @@
 title: PACAL
 status: final
 created: 2026-06-18
-updated: 2026-06-26
-version: 1.1
+updated: 2026-06-28
+version: 1.2
 ---
 
 # PRD: PACAL
@@ -559,6 +559,106 @@ Le rapport PDF adopte un layout à 3 colonnes pour chaque ligne d'entrée : heur
 - Les entrées "instant" (sans champ alimentaire) suivent le même layout.
 
 **Décision de conception :** la hauteur de 2 cm est une contrainte de rendu — elle sera traduite en unités pt dans `@react-pdf/renderer` lors de l'implémentation. Le ratio d'aspect de la photo est préservé (pas de déformation).
+
+---
+
+---
+
+## §11 (suite) — Addendum V1.2 (2026-06-28)
+
+*Stories 1.12 à 1.19 correspondent aux FR-28 à FR-35 ci-dessous.*
+
+#### FR-28 : Bouton de rafraîchissement de la date/heure
+Sur le formulaire de saisie (nouvelle entrée **et** édition d'une entrée existante), un bouton discret permet de remettre la date/heure à l'instant courant. Ce besoin naît du cas d'usage où l'utilisateur laisse le formulaire ouvert et revient plus tard pour saisir une deuxième fiche : la date/heure pré-remplie au chargement est alors obsolète.
+
+**Conséquences (testables) :**
+- Un bouton "Actualiser la date/heure" est visible à côté du champ date sur les deux formulaires (saisie + édition).
+- Un clic positionne le champ date/heure sur l'instant de l'appui (à la seconde).
+- Le bouton ne soumet pas le formulaire.
+
+#### FR-29 : Pré-remplir le dernier contexte saisi
+Le champ *contexte* (condition de prise — liste fermée) se pré-remplit avec la dernière valeur utilisée par l'utilisateur, plutôt que de rester vide ou sur une valeur arbitraire.
+
+**Conséquences (testables) :**
+- À l'ouverture d'un formulaire de nouvelle entrée, le champ contexte affiche la dernière valeur enregistrée (persistée côté serveur ou en localStorage).
+- Si aucune entrée n'existe encore, le comportement actuel est conservé (valeur vide ou premier choix de la liste).
+- Le formulaire d'édition d'une entrée existante n'est pas affecté (il pré-remplit la valeur de l'entrée, pas la "dernière").
+
+#### FR-30 : Remplacer "poids" par "quantité" + unité
+Le champ "poids" (nombre décimal, libellé "Poids estimé (g)") est remplacé par :
+- **Quantité** : entier positif, optionnel.
+- **Unité** : liste fermée — `g`, `kg`, `dl`, `l`, `portion` — optionnelle, sans valeur par défaut imposée.
+
+Ce changement impacte : la table `entries` (migration), les exports CSV/ZIP, et le rapport PDF.
+
+**Conséquences (testables) :**
+- La colonne `weight` est renommée `quantity` (entier) et une colonne `unit` (varchar) est ajoutée par migration Drizzle.
+- Le formulaire de saisie et le formulaire d'édition reflètent les nouveaux libellés et types.
+- L'export CSV contient les colonnes `quantity` et `unit` (la colonne `weight` disparaît).
+- Le rapport PDF affiche "X g", "X portion", etc. selon l'unité choisie. Si aucune unité, la valeur seule est affichée.
+- Une entrée sans quantité ni unité reste valide.
+
+#### FR-31 : Type de note (aliment, médicament, sommeil, autre)
+Le champ "note" (texte libre) est enrichi d'un sous-champ **type** optionnel, liste fermée : `aliment`, `médicament`, `sommeil`, `autre`. Ce champ s'ajoute sans modifier le champ *contexte* (condition de prise, FR-4) qui reste inchangé.
+
+**Conséquences (testables) :**
+- Une colonne `note_type` (varchar nullable) est ajoutée à `entries` par migration Drizzle.
+- Sur les formulaires, un sélecteur "Type de note" apparaît à côté ou sous le champ note — il est optionnel (peut rester non renseigné).
+- Le type de note apparaît dans l'export CSV et dans le rapport PDF.
+- Le champ contexte (condition de prise) reste inchangé.
+
+#### FR-32 : Menu "À propos"
+L'affichage de la version et du build sous le titre PACAL (FR-24, Story 1.9) est remplacé par un lien/menu "À propos" accessible depuis l'en-tête. Ce menu contient :
+1. Numéro de version et date de build (identique à l'ancien affichage).
+2. Stack technique avec numéros de version (Next.js, tRPC, Drizzle, Tailwind, PostgreSQL, Node.js — lus depuis `package.json` pour les dépendances npm).
+3. Changelog succinct (texte statique maintenu manuellement dans le code).
+
+**Conséquences (testables) :**
+- L'en-tête ne montre plus la version en sous-titre permanent.
+- Un lien "À propos" est présent dans la navigation (ou l'en-tête).
+- La page/modal "À propos" affiche les 3 sections ci-dessus.
+- En l'absence des variables d'environnement de build, la section version s'affiche sans erreur.
+
+#### FR-33 : Deux photos par fiche
+Chaque entrée peut désormais avoir jusqu'à **deux photos** indépendantes et optionnelles. Aucune contrainte sur le contenu (l'utilisateur choisit librement ce qu'il photographie). Il n'y aura pas de troisième slot.
+
+**Conséquences (testables) :**
+- Deux colonnes `photo_path_1` et `photo_path_2` (nullable) remplacent `photo_path` dans `entries` — migration Drizzle requise.
+- Sur le formulaire de saisie et d'édition, deux zones de capture indépendantes sont présentes (chacune : appareil photo ou galerie, preview, suppression).
+- Chaque zone est optionnelle et indépendante de l'autre.
+- L'export ZIP inclut les deux photos si elles existent (nommées distinctement).
+- Le rapport PDF affiche jusqu'à deux vignettes par entrée (layout à adapter).
+- La suppression d'une entrée supprime les deux fichiers photos associés.
+
+#### FR-34 : Duplication → écran de saisie prérempli
+La duplication d'une entrée depuis l'historique n'effectue plus de copie directe. Elle ouvre le formulaire de saisie pré-rempli avec les champs de l'entrée source, mais :
+- la date/heure est celle de l'instant courant (pas de l'entrée source) ;
+- aucune photo n'est reprise.
+
+**Conséquences (testables) :**
+- Depuis l'historique, le bouton "Dupliquer" ouvre le formulaire de saisie (pas de création immédiate).
+- Tous les champs textuels/sélecteurs de l'entrée source sont pré-remplis, sauf la date (= maintenant) et les photos (vides).
+- L'utilisateur peut modifier tous les champs avant d'enregistrer.
+- L'entrée source reste inchangée.
+- Aucune entrée n'est créée si l'utilisateur annule.
+
+#### FR-35 : Charte graphique et logo
+Application d'une identité visuelle cohérente sur l'ensemble des écrans et du rapport PDF.
+
+**Palette :**
+- Titres (headings h1–h3, labels de section) : `#F05C22` (orange).
+- Saisies et textes courants : `#06466D` (bleu marine).
+
+**Logo :** le fichier logo fourni (`public/logo.png`) est affiché :
+- Dans l'en-tête de l'application (à côté du titre "PACAL").
+- En en-tête du rapport PDF généré.
+
+**Conséquences (testables) :**
+- Tous les titres principaux affichent la couleur `#F05C22`.
+- Les champs de saisie et le texte courant affichent la couleur `#06466D`.
+- Le logo est visible dans le header sur toutes les pages.
+- Le logo est visible en en-tête du PDF.
+- L'application reste lisible et accessible (contraste suffisant sur fond blanc).
 
 ---
 

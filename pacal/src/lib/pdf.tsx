@@ -1,4 +1,5 @@
 import fs from "fs";
+import path from "path";
 import React from "react";
 import {
   Document,
@@ -17,14 +18,19 @@ type Entry = {
   timestamp: Date;
   condition: string;
   description: string | null;
-  weightG: number | null;
+  quantity: number | null;
+  unit: string | null;
   calories: number | null;
   estimationStatus: string;
   note: string | null;
-  photoPath: string | null;
+  noteType: string | null;
+  photoPath1: string | null;
+  photoPath2: string | null;
 };
 
-const PHOTO_COL_WIDTH = 57; // ≈ 2 cm (2 × 28.35 pt/cm)
+const BRAND_ORANGE = "#F05C22";
+const BRAND_MARINE = "#06466D";
+const PHOTO_COL_WIDTH = 57; // ≈ 2 cm
 
 const styles = StyleSheet.create({
   page: {
@@ -33,12 +39,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 36,
     fontSize: 10,
     fontFamily: "Helvetica",
-    color: "#111827",
+    color: BRAND_MARINE,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+    gap: 8,
+  },
+  logo: {
+    width: 32,
+    height: 32,
   },
   title: {
     fontSize: 18,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 4,
+    color: BRAND_ORANGE,
   },
   subtitle: {
     fontSize: 9,
@@ -48,12 +64,12 @@ const styles = StyleSheet.create({
   dayHeader: {
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
-    color: "#1d4ed8",
+    color: BRAND_ORANGE,
     marginTop: 18,
     marginBottom: 6,
     paddingBottom: 3,
     borderBottomWidth: 1,
-    borderBottomColor: "#bfdbfe",
+    borderBottomColor: "#fcd9c8",
   },
   entry: {
     marginBottom: 6,
@@ -67,27 +83,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
   },
-  colTime: {
-    width: 40,
-  },
-  colContent: {
-    flex: 1,
-    paddingRight: 4,
-  },
-  colPhoto: {
-    width: PHOTO_COL_WIDTH,
-  },
+  colTime: { width: 40 },
+  colContent: { flex: 1, paddingRight: 4 },
+  colPhoto: { width: PHOTO_COL_WIDTH },
   time: {
     fontFamily: "Helvetica-Bold",
-    color: "#374151",
+    color: BRAND_MARINE,
   },
   condition: {
-    color: "#374151",
+    color: BRAND_MARINE,
     marginBottom: 2,
   },
   description: {
     marginBottom: 2,
-    color: "#111827",
+    color: BRAND_MARINE,
   },
   metrics: {
     flexDirection: "row",
@@ -102,9 +111,7 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginRight: 4,
   },
-  metricValue: {
-    marginRight: 4,
-  },
+  metricValue: { marginRight: 4 },
   badge: {
     fontSize: 7,
     color: "#ffffff",
@@ -114,17 +121,22 @@ const styles = StyleSheet.create({
     paddingLeft: 3,
     paddingRight: 3,
   },
-  badgeMesure: {
-    backgroundColor: "#059669",
-  },
+  badgeMesure: { backgroundColor: "#059669" },
   note: {
     color: "#4b5563",
     fontFamily: "Helvetica-Oblique",
     marginBottom: 1,
   },
+  noteType: {
+    fontSize: 8,
+    color: BRAND_ORANGE,
+    marginBottom: 1,
+  },
   thumbnail: {
+    width: PHOTO_COL_WIDTH,
     height: PHOTO_COL_WIDTH,
     objectFit: "contain",
+    marginBottom: 2,
   },
   footer: {
     position: "absolute",
@@ -149,8 +161,7 @@ function formatTime(date: Date): string {
 function groupByDay(items: Entry[]): [string, Entry[]][] {
   const map = new Map<string, Entry[]>();
   for (const entry of items) {
-    const d = new Date(entry.timestamp);
-    const key = d.toLocaleDateString("fr-FR", {
+    const key = new Date(entry.timestamp).toLocaleDateString("fr-FR", {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -167,6 +178,13 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+function quantityLabel(quantity: number | null, unit: string | null): string {
+  if (quantity == null) return "";
+  return unit ? `${quantity} ${unit}` : String(quantity);
+}
+
+const LOGO_PATH = path.join(process.cwd(), "public", "logo.png");
+
 type RapportPDFProps = {
   entries: Entry[];
   from: Date | null;
@@ -175,6 +193,7 @@ type RapportPDFProps = {
 
 export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
   const days = groupByDay(items);
+  const hasLogo = fs.existsSync(LOGO_PATH);
 
   const periodLabel =
     from && to
@@ -188,7 +207,10 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Text style={styles.title}>Rapport alimentaire PACAL</Text>
+        <View style={styles.header}>
+          {hasLogo && <Image src={LOGO_PATH} style={styles.logo} />}
+          <Text style={styles.title}>Rapport alimentaire PACAL</Text>
+        </View>
         <Text style={styles.subtitle}>{periodLabel}</Text>
 
         {days.map(([day, dayEntries]) => (
@@ -198,45 +220,30 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
             {dayEntries.map((entry) => {
               const isMesure = entry.estimationStatus === "mesure";
               const conditionLabel =
-                ENTRY_CONDITION_LABELS[
-                  entry.condition as keyof typeof ENTRY_CONDITION_LABELS
-                ] ?? entry.condition;
+                ENTRY_CONDITION_LABELS[entry.condition as keyof typeof ENTRY_CONDITION_LABELS] ?? entry.condition;
+              const qLabel = quantityLabel(entry.quantity, entry.unit);
 
-              const hasPhoto =
-                !!entry.photoPath && fs.existsSync(entry.photoPath);
+              const photos = [entry.photoPath1, entry.photoPath2]
+                .filter((p): p is string => !!p && fs.existsSync(p));
 
               return (
                 <View key={entry.id} style={styles.entry}>
                   <View style={styles.entryRow}>
-                    {/* Colonne heure */}
                     <View style={styles.colTime}>
-                      <Text style={styles.time}>
-                        {formatTime(new Date(entry.timestamp))}
-                      </Text>
+                      <Text style={styles.time}>{formatTime(new Date(entry.timestamp))}</Text>
                     </View>
 
-                    {/* Colonne contenu */}
                     <View style={styles.colContent}>
                       <Text style={styles.condition}>{conditionLabel}</Text>
+                      {entry.description ? <Text style={styles.description}>{entry.description}</Text> : null}
 
-                      {entry.description ? (
-                        <Text style={styles.description}>{entry.description}</Text>
-                      ) : null}
-
-                      {(entry.weightG != null || entry.calories != null) ? (
+                      {(qLabel || entry.calories != null) ? (
                         <View style={styles.metrics}>
-                          {entry.weightG != null ? (
+                          {qLabel ? (
                             <View style={styles.metricItem}>
-                              <Text style={styles.metricLabel}>Poids :</Text>
-                              <Text style={styles.metricValue}>
-                                {entry.weightG} g
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.badge,
-                                  isMesure ? styles.badgeMesure : {},
-                                ]}
-                              >
+                              <Text style={styles.metricLabel}>Qté :</Text>
+                              <Text style={styles.metricValue}>{qLabel}</Text>
+                              <Text style={[styles.badge, isMesure ? styles.badgeMesure : {}]}>
                                 {isMesure ? "M" : "E"}
                               </Text>
                             </View>
@@ -244,15 +251,8 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
                           {entry.calories != null ? (
                             <View style={styles.metricItem}>
                               <Text style={styles.metricLabel}>Calories :</Text>
-                              <Text style={styles.metricValue}>
-                                {entry.calories} kcal
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.badge,
-                                  isMesure ? styles.badgeMesure : {},
-                                ]}
-                              >
+                              <Text style={styles.metricValue}>{entry.calories} kcal</Text>
+                              <Text style={[styles.badge, isMesure ? styles.badgeMesure : {}]}>
                                 {isMesure ? "M" : "E"}
                               </Text>
                             </View>
@@ -260,19 +260,16 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
                         </View>
                       ) : null}
 
-                      {entry.note ? (
-                        <Text style={styles.note}>{entry.note}</Text>
+                      {entry.noteType ? (
+                        <Text style={styles.noteType}>[{entry.noteType}]</Text>
                       ) : null}
+                      {entry.note ? <Text style={styles.note}>{entry.note}</Text> : null}
                     </View>
 
-                    {/* Colonne photo — toujours présente */}
                     <View style={styles.colPhoto}>
-                      {hasPhoto ? (
-                        <Image
-                          src={entry.photoPath!}
-                          style={styles.thumbnail}
-                        />
-                      ) : null}
+                      {photos.map((p, i) => (
+                        <Image key={i} src={p} style={styles.thumbnail} />
+                      ))}
                     </View>
                   </View>
                 </View>
@@ -283,11 +280,7 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
 
         <Text style={styles.footer}>
           Généré par PACAL le{" "}
-          {new Date().toLocaleDateString("fr-FR", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
+          {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
         </Text>
       </Page>
     </Document>
@@ -299,7 +292,5 @@ export async function renderRapport(
   from: Date | null,
   to: Date | null
 ): Promise<Buffer> {
-  return renderToBuffer(
-    <RapportPDF entries={items} from={from} to={to} />
-  ) as Promise<Buffer>;
+  return renderToBuffer(<RapportPDF entries={items} from={from} to={to} />) as Promise<Buffer>;
 }

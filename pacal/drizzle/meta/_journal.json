@@ -16,5 +16,12 @@
       "tag": "0001_luxuriant_lady_ursula",
       "breakpoints": true
     }
+    ,{
+      "idx": 2,
+      "version": "7",
+      "when": 1751116800000,
+      "tag": "0002_v12_schema",
+      "breakpoints": true
+    }
   ]
 }

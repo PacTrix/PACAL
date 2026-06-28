@@ -9,7 +9,15 @@
       "Bash(npm install *)",
       "Bash(pnpm *)",
       "Bash(grep -E \"^\\\\.env$|^data/\" /Users/pac/Documents/Claude/Projects/pacal/pacal/.gitignore)",
-      "Bash(SKIP_ENV_VALIDATION=1 pnpm build)"
+      "Bash(SKIP_ENV_VALIDATION=1 pnpm build)",
+      "Bash(python3 /Users/pac/Documents/Claude/Projects/pacal/_bmad/scripts/resolve_customization.py --skill /Users/pac/Documents/Claude/Projects/pacal/.claude/skills/bmad-agent-pm --key agent)",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Skill(code-review)",
+      "Skill(code-review:*)",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); [print\\(f'{k}: {v}'\\) for k,v in {**p.get\\('dependencies',{}\\),**p.get\\('devDependencies',{}\\)}.items\\(\\) if any\\(x in k for x in ['next','trpc','drizzle','tailwind','react-pdf','fflate']\\)]\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d['tables']['public.pacal_entry']['columns'], indent=2\\)\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

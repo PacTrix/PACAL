@@ -4,17 +4,20 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { entries, ENTRY_CONDITIONS } from "~/server/db/schema";
+import { entries, ENTRY_CONDITIONS, ENTRY_UNITS, NOTE_TYPES } from "~/server/db/schema";
 import { TRPCError } from "@trpc/server";
 
 export const createEntrySchema = z.object({
   timestamp: z.date(),
   condition: z.enum(ENTRY_CONDITIONS),
   description: z.string().optional(),
-  weightG: z.number().nonnegative().optional(),
+  quantity: z.number().int().nonnegative().optional(),
+  unit: z.enum(ENTRY_UNITS).optional(),
   calories: z.number().nonnegative().optional(),
   note: z.string().optional(),
-  photoPath: z.string().optional(),
+  noteType: z.enum(NOTE_TYPES).optional(),
+  photoPath1: z.string().optional(),
+  photoPath2: z.string().optional(),
 });
 
 export const updateEntrySchema = z.object({
@@ -22,10 +25,13 @@ export const updateEntrySchema = z.object({
   timestamp: z.date(),
   condition: z.enum(ENTRY_CONDITIONS),
   description: z.string().optional(),
-  weightG: z.number().nonnegative().optional(),
+  quantity: z.number().int().nonnegative().optional(),
+  unit: z.enum(ENTRY_UNITS).optional(),
   calories: z.number().nonnegative().optional(),
   note: z.string().optional(),
-  photoPath: z.string().nullable().optional(),
+  noteType: z.enum(NOTE_TYPES).optional(),
+  photoPath1: z.string().nullable().optional(),
+  photoPath2: z.string().nullable().optional(),
 });
 
 export type CreateEntryInput = z.infer<typeof createEntrySchema>;
@@ -58,10 +64,13 @@ export const entriesRouter = createTRPCRouter({
           timestamp: input.timestamp,
           condition: input.condition,
           description: input.description,
-          weightG: input.weightG,
+          quantity: input.quantity,
+          unit: input.unit,
           calories: input.calories,
           note: input.note,
-          photoPath: input.photoPath,
+          noteType: input.noteType,
+          photoPath1: input.photoPath1,
+          photoPath2: input.photoPath2,
         })
         .returning();
       return entry;
@@ -76,10 +85,13 @@ export const entriesRouter = createTRPCRouter({
           timestamp: input.timestamp,
           condition: input.condition,
           description: input.description ?? null,
-          weightG: input.weightG ?? null,
+          quantity: input.quantity ?? null,
+          unit: input.unit ?? null,
           calories: input.calories ?? null,
           note: input.note ?? null,
-          photoPath: input.photoPath ?? null,
+          noteType: input.noteType ?? null,
+          photoPath1: input.photoPath1 ?? null,
+          photoPath2: input.photoPath2 ?? null,
         })
         .where(eq(entries.id, input.id))
         .returning();
@@ -99,11 +111,9 @@ export const entriesRouter = createTRPCRouter({
       if (!entry) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Entrée introuvable" });
       }
-      if (entry.photoPath) {
-        try {
-          await fs.unlink(entry.photoPath);
-        } catch {
-          // Fichier absent du volume — non bloquant
+      for (const p of [entry.photoPath1, entry.photoPath2]) {
+        if (p) {
+          try { await fs.unlink(p); } catch { /* absent du volume — non bloquant */ }
         }
       }
       await ctx.db.delete(entries).where(eq(entries.id, input.id));
