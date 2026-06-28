@@ -1,6 +1,8 @@
+import fs from "fs";
 import React from "react";
 import {
   Document,
+  Image,
   Page,
   Text,
   View,
@@ -21,6 +23,8 @@ type Entry = {
   note: string | null;
   photoPath: string | null;
 };
+
+const PHOTO_COL_WIDTH = 57; // ≈ 2 cm (2 × 28.35 pt/cm)
 
 const styles = StyleSheet.create({
   page: {
@@ -59,29 +63,34 @@ const styles = StyleSheet.create({
     paddingRight: 8,
     backgroundColor: "#f8fafc",
   },
-  entryHeader: {
+  entryRow: {
     flexDirection: "row",
-    marginBottom: 2,
+    alignItems: "flex-start",
+  },
+  colTime: {
+    width: 40,
+  },
+  colContent: {
+    flex: 1,
+    paddingRight: 4,
+  },
+  colPhoto: {
+    width: PHOTO_COL_WIDTH,
   },
   time: {
     fontFamily: "Helvetica-Bold",
-    width: 40,
     color: "#374151",
   },
   condition: {
     color: "#374151",
-  },
-  indent: {
-    marginLeft: 40,
+    marginBottom: 2,
   },
   description: {
-    marginLeft: 40,
     marginBottom: 2,
     color: "#111827",
   },
   metrics: {
     flexDirection: "row",
-    marginLeft: 40,
     marginBottom: 2,
   },
   metricItem: {
@@ -109,15 +118,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#059669",
   },
   note: {
-    marginLeft: 40,
     color: "#4b5563",
     fontFamily: "Helvetica-Oblique",
     marginBottom: 1,
   },
-  photo: {
-    marginLeft: 40,
-    color: "#9ca3af",
-    fontSize: 8,
+  thumbnail: {
+    height: PHOTO_COL_WIDTH,
+    objectFit: "contain",
   },
   footer: {
     position: "absolute",
@@ -195,63 +202,79 @@ export function RapportPDF({ entries: items, from, to }: RapportPDFProps) {
                   entry.condition as keyof typeof ENTRY_CONDITION_LABELS
                 ] ?? entry.condition;
 
+              const hasPhoto =
+                !!entry.photoPath && fs.existsSync(entry.photoPath);
+
               return (
                 <View key={entry.id} style={styles.entry}>
-                  <View style={styles.entryHeader}>
-                    <Text style={styles.time}>
-                      {formatTime(new Date(entry.timestamp))}
-                    </Text>
-                    <Text style={styles.condition}>{conditionLabel}</Text>
-                  </View>
+                  <View style={styles.entryRow}>
+                    {/* Colonne heure */}
+                    <View style={styles.colTime}>
+                      <Text style={styles.time}>
+                        {formatTime(new Date(entry.timestamp))}
+                      </Text>
+                    </View>
 
-                  {entry.description ? (
-                    <Text style={styles.description}>{entry.description}</Text>
-                  ) : null}
+                    {/* Colonne contenu */}
+                    <View style={styles.colContent}>
+                      <Text style={styles.condition}>{conditionLabel}</Text>
 
-                  {(entry.weightG != null || entry.calories != null) ? (
-                    <View style={styles.metrics}>
-                      {entry.weightG != null ? (
-                        <View style={styles.metricItem}>
-                          <Text style={styles.metricLabel}>Poids :</Text>
-                          <Text style={styles.metricValue}>
-                            {entry.weightG} g
-                          </Text>
-                          <Text
-                            style={[
-                              styles.badge,
-                              isMesure ? styles.badgeMesure : {},
-                            ]}
-                          >
-                            {isMesure ? "M" : "E"}
-                          </Text>
+                      {entry.description ? (
+                        <Text style={styles.description}>{entry.description}</Text>
+                      ) : null}
+
+                      {(entry.weightG != null || entry.calories != null) ? (
+                        <View style={styles.metrics}>
+                          {entry.weightG != null ? (
+                            <View style={styles.metricItem}>
+                              <Text style={styles.metricLabel}>Poids :</Text>
+                              <Text style={styles.metricValue}>
+                                {entry.weightG} g
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.badge,
+                                  isMesure ? styles.badgeMesure : {},
+                                ]}
+                              >
+                                {isMesure ? "M" : "E"}
+                              </Text>
+                            </View>
+                          ) : null}
+                          {entry.calories != null ? (
+                            <View style={styles.metricItem}>
+                              <Text style={styles.metricLabel}>Calories :</Text>
+                              <Text style={styles.metricValue}>
+                                {entry.calories} kcal
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.badge,
+                                  isMesure ? styles.badgeMesure : {},
+                                ]}
+                              >
+                                {isMesure ? "M" : "E"}
+                              </Text>
+                            </View>
+                          ) : null}
                         </View>
                       ) : null}
-                      {entry.calories != null ? (
-                        <View style={styles.metricItem}>
-                          <Text style={styles.metricLabel}>Calories :</Text>
-                          <Text style={styles.metricValue}>
-                            {entry.calories} kcal
-                          </Text>
-                          <Text
-                            style={[
-                              styles.badge,
-                              isMesure ? styles.badgeMesure : {},
-                            ]}
-                          >
-                            {isMesure ? "M" : "E"}
-                          </Text>
-                        </View>
+
+                      {entry.note ? (
+                        <Text style={styles.note}>{entry.note}</Text>
                       ) : null}
                     </View>
-                  ) : null}
 
-                  {entry.note ? (
-                    <Text style={styles.note}>{entry.note}</Text>
-                  ) : null}
-
-                  {entry.photoPath ? (
-                    <Text style={styles.photo}>Photo jointe</Text>
-                  ) : null}
+                    {/* Colonne photo — toujours présente */}
+                    <View style={styles.colPhoto}>
+                      {hasPhoto ? (
+                        <Image
+                          src={entry.photoPath!}
+                          style={styles.thumbnail}
+                        />
+                      ) : null}
+                    </View>
+                  </View>
                 </View>
               );
             })}

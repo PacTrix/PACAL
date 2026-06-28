@@ -2,7 +2,8 @@
 title: PACAL
 status: final
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-26
+version: 1.1
 ---
 
 # PRD: PACAL
@@ -493,6 +494,73 @@ obligatoire au chemin de saisie de base.
    la génération du rapport PDF plutôt qu'à la saisie — réduirait la
    dépendance temps réel à une source non officielle. À trancher avec le
    reste de la faisabilité Yuka.
+
+---
+
+## 11. V1.1 — Évolutions et corrections (2026-06-26)
+
+### Contexte
+
+La V1.0 est déployée et utilisée. Ces trois ajustements sont issus du premier cycle d'usage réel. Ils sont traités comme une maintenance évolutive mineure — aucun changement de vision, aucune remise en cause du modèle de données existant.
+
+### 11.1 Affichage de la version et du build dans l'en-tête
+
+**Description :** L'utilisateur doit pouvoir identifier immédiatement quelle version de PACAL tourne sur son NAS, sans consulter les logs du conteneur.
+
+#### FR-24 : Affichage version et build dans l'en-tête de l'application
+Sous le titre PACAL, l'application affiche en plus petit et en italique le numéro de version sémantique et la référence de build (date de build et/ou hash de commit court). Cette information est injectée au moment du build et non saisie manuellement.
+
+**Conséquences (testables) :**
+- Le numéro de version est lisible dans toutes les vues de l'application, sous le titre principal.
+- La valeur est cohérente avec le tag git ou la date de build du conteneur déployé.
+- L'information ne figure pas dans une page de paramètres cachée : elle est visible sans navigation supplémentaire.
+
+**Décision de conception :** la référence de build est injectée via une variable d'environnement au moment du build Docker (`NEXT_PUBLIC_APP_VERSION`, `NEXT_PUBLIC_BUILD_DATE`), ce qui ne nécessite aucune modification du modèle de données.
+
+---
+
+### 11.2 Suppression et duplication d'une entrée depuis l'historique
+
+**Description :** Deux actions manquantes sur la vue historique : supprimer une entrée erronée, et dupliquer une entrée pour réutiliser son contenu sans ressaisir.
+
+#### FR-25 : Suppression d'une entrée depuis la vue historique
+L'utilisateur peut supprimer définitivement une entrée depuis la vue historique. Une confirmation explicite est demandée avant la suppression (action destructive irréversible).
+
+**Conséquences (testables) :**
+- Une action "Supprimer" est accessible depuis la vue historique pour chaque entrée.
+- Un mécanisme de confirmation (dialog, bouton de confirmation) est présenté avant la suppression effective.
+- Après confirmation, l'entrée disparaît de l'historique, des exports et des rapports générés ultérieurement.
+- La photo associée (si elle existe) est également supprimée du stockage.
+
+#### FR-26 : Duplication d'une entrée depuis la vue historique
+L'utilisateur peut dupliquer une entrée existante depuis la vue historique. La duplication crée une nouvelle entrée pré-remplie avec les valeurs de l'entrée source (description, poids, calories, conditions de prise, note), mais avec l'horodatage remis à l'instant présent. La photo n'est pas dupliquée.
+
+**Conséquences (testables) :**
+- Une action "Dupliquer" est accessible depuis la vue historique pour chaque entrée.
+- L'action ouvre le formulaire de saisie pré-rempli avec les valeurs de l'entrée source.
+- L'horodatage du formulaire pré-rempli est celui de l'instant de la duplication, modifiable comme pour toute nouvelle saisie.
+- La photo de l'entrée source n'est pas copiée — le champ photo est vide sur la nouvelle entrée.
+- L'entrée source reste inchangée.
+
+---
+
+### 11.3 Vignette photo dans le rapport PDF
+
+**Description :** Quand une entrée comporte une photo, le rapport PDF doit permettre de l'identifier visuellement sans avoir à ouvrir l'export ZIP séparément.
+
+#### FR-27 : Layout 3 colonnes dans le rapport PDF avec vignette photo
+Le rapport PDF adopte un layout à 3 colonnes pour chaque ligne d'entrée : heure | contenu textuel | photo. La colonne photo est toujours présente ; elle affiche une vignette d'environ 2 cm de hauteur quand une photo existe, et reste vide sinon. Ce layout remplace le layout existant à 2 colonnes.
+
+**Conséquences (testables) :**
+- Toute ligne d'entrée dans le PDF présente les 3 colonnes, quelle que soit la présence d'une photo.
+- Une entrée avec photo affiche une vignette d'environ 2 cm de hauteur dans la colonne droite.
+- Une entrée sans photo laisse la colonne droite vide (pas de placeholder, pas d'icône).
+- La vignette est suffisamment petite pour ne pas fragmenter le rapport (pas de saut de page provoqué par une seule image).
+- Les entrées "instant" (sans champ alimentaire) suivent le même layout.
+
+**Décision de conception :** la hauteur de 2 cm est une contrainte de rendu — elle sera traduite en unités pt dans `@react-pdf/renderer` lors de l'implémentation. Le ratio d'aspect de la photo est préservé (pas de déformation).
+
+---
 
 ## 10. Assumptions Index
 

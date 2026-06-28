@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Injecter au build : APP_VERSION=1.1.0 BUILD_DATE=$(date +%Y-%m-%d) docker compose build
+        APP_VERSION: ${APP_VERSION:-}
+        BUILD_DATE: ${BUILD_DATE:-}
     restart: unless-stopped
     ports:
       - "3000:3000"

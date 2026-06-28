@@ -6,7 +6,7 @@ inputDocuments:
   - docs/PACAL-cahier-des-charges.md
 workflowType: 'architecture'
 lastStep: 8
-status: 'complete'
+status: 'complete — addendum V1.1 ajouté 2026-06-26'
 project_name: 'PACAL'
 user_name: 'Utilisateur'
 date: '2026-06-18'
@@ -700,4 +700,105 @@ pnpm dlx create-t3-app@latest --CI --trpc --tailwind --drizzle --dbProvider post
 Puis : activer les certificats HTTPS Tailscale sur le NAS *avant* d'écrire
 la moindre fonctionnalité de scan — c'est un prérequis d'infrastructure, pas
 une story applicative.
+
+---
+
+## Addendum V1.1 — Décisions d'architecture (2026-06-26)
+
+### Contexte de la révision
+
+La V1.0 est déployée et utilisée. Les FR-24 à FR-27 (PRD §11) constituent une maintenance évolutive mineure. Aucune décision d'architecture V1.0 n'est remise en cause. Cet addendum documente uniquement les choix d'implémentation nouveaux ou modifiés.
+
+Code inspecté avant rédaction : `src/app/layout.tsx`, `src/components/ui/Nav.tsx`, `src/server/api/routers/entries.ts`, `src/components/features/entry-history/EntryList.tsx`, `src/lib/pdf.tsx`, `src/env.js`, `next.config.js`.
+
+---
+
+### FR-24 — Affichage version et build dans l'en-tête
+
+**Décision : variables d'environnement `NEXT_PUBLIC_*` injectées au build Docker.**
+
+- Deux variables ajoutées : `NEXT_PUBLIC_APP_VERSION` (ex. `1.1.0`) et `NEXT_PUBLIC_BUILD_DATE` (ex. `2026-06-26`).
+- Ces variables sont déclarées dans `src/env.js` côté `client` (préfixe `NEXT_PUBLIC_`) avec `z.string().optional()` — optionnelles pour ne pas bloquer le `pnpm dev` local sans les avoir définies.
+- Affichage dans `Nav.tsx` : ajout d'un titre "PACAL" au-dessus des liens de navigation (actuellement absent de la nav — le titre n'apparaît nulle part dans l'UI V1.0), avec la version et la date en dessous en plus petit et italique.
+- Aucune modification du schéma de données, aucune migration requise.
+
+**Pourquoi pas un fichier de version :** l'injection par variable d'environnement au build Docker est la pratique standard pour les conteneurs — elle évite de gérer un fichier de version en plus du `package.json`, et la valeur est disponible côté client sans requête serveur supplémentaire.
+
+**Impact Dockerfile :** le `docker compose` de déploiement devra passer `NEXT_PUBLIC_APP_VERSION` et `NEXT_PUBLIC_BUILD_DATE` en `build-args`. À documenter dans le `docker-compose.yml`.
+
+---
+
+### FR-25 — Suppression d'une entrée
+
+**Décision : nouvelle procédure `entries.delete` dans le routeur existant + suppression du fichier photo côté serveur.**
+
+- Procédure tRPC : `entries.delete` (mutation, input `{ id: number }`).
+- Séquence côté serveur :
+  1. Récupérer l'entrée (pour obtenir `photoPath`) via `getById` ou une requête inline.
+  2. Si `photoPath` est non null, supprimer le fichier du volume `data/photos/` via `fs.unlink` (Node.js natif — pas de dépendance supplémentaire).
+  3. Supprimer la ligne en base avec Drizzle.
+- En cas d'erreur `fs.unlink` (fichier déjà absent) : log d'avertissement, opération non bloquante — la ligne est supprimée de la base dans tous les cas. Un fichier orphelin vaut mieux qu'une suppression incomplète.
+- Frontend (`EntryList.tsx`) : ajout d'un bouton "Supprimer" sur chaque carte. Un dialog de confirmation natif (`window.confirm`) est suffisant pour ce cas d'usage mono-utilisateur — pas de composant de modal dédié.
+- Invalidation React Query : `utils.entries.list.invalidate()` après la mutation, pattern déjà en place dans les autres mutations.
+- Aucune migration de schéma requise.
+
+**Frontière importante :** la suppression du fichier photo se fait **dans le routeur tRPC**, pas dans `lib/pdf.ts` ni dans un handler séparé — cohérent avec la règle existante "seul `server/db/` accède à PostgreSQL, les routeurs sont les seuls appelants". L'accès filesystem est une opération de la même couche que l'accès DB pour cette mutation.
+
+---
+
+### FR-26 — Duplication d'une entrée
+
+**Décision : pas de nouvelle procédure tRPC — réutilisation de `entries.create` existant.**
+
+La duplication est une opération UX, pas une opération de données nouvelle. Mécanisme :
+- Bouton "Dupliquer" dans `EntryList.tsx` sur chaque carte.
+- Au clic : appel de `entries.create.useMutation()` avec les valeurs de l'entrée source (description, poids, calories, condition, note) et `timestamp: new Date()`.
+- La photo n'est pas dupliquée (décision PRD FR-26) — `photoPath` n'est pas transmis.
+- Après succès de la mutation, invalidation de `entries.list` pour rafraîchir la liste.
+
+**Alternative écartée — navigation vers le formulaire de saisie pré-rempli via URL params :** techniquement faisable (passer les valeurs en query string vers `/`), mais fragile (longueur d'URL, encodage des caractères spéciaux dans les champs texte) et ne respecte pas la séparation des responsabilités — `EntryList` ne devrait pas construire une URL de navigation avec des données d'une autre vue. La mutation directe est plus robuste.
+
+---
+
+### FR-27 — Layout 3 colonnes avec vignette photo dans le rapport PDF
+
+**Décision : `Image` de `@react-pdf/renderer` avec lecture de fichier côté serveur, layout `flexDirection: "row"` à 3 colonnes.**
+
+`@react-pdf/renderer` expose un composant `Image` qui accepte un chemin de fichier local (côté serveur Node.js) ou un Buffer base64. Puisque `renderRapport` s'exécute côté serveur (route `GET /api/rapport`), les fichiers `data/photos/` sont accessibles directement par chemin absolu via `PHOTOS_DIR` (déjà utilisé dans la route photos V1.0).
+
+**Structure de layout :**
+
+```
+entryRow (flexDirection: "row", alignItems: "flex-start")
+├── col_time (width: 40pt)
+├── col_content (flex: 1)  ← tout le contenu textuel existant
+└── col_photo (width: ~57pt ≈ 2cm à 72dpi)
+    └── Image (height: ~57pt, objectFit: "contain") si photoPath présent
+        ou View vide si absent
+```
+
+- La largeur de la colonne photo est fixée à ~57pt (2 cm × 28.35 pt/cm ≈ 56.7 pt, arrondi à 57pt).
+- `objectFit: "contain"` préserve le ratio d'aspect sans déformation.
+- La colonne photo est **toujours rendue** (View avec largeur fixe), même sans photo — évite un décalage de layout entre les lignes.
+- L'actuelle mention textuelle `"Photo jointe"` (style `photo` en V1.0) est supprimée et remplacée par la vignette.
+
+**Gestion d'erreur lecture fichier :** si `fs.existsSync(photoPath)` retourne false (photo référencée en base mais absente du volume), la colonne photo reste vide plutôt que de faire planter la génération du PDF entier — même politique de tolérance que pour la suppression (FR-25).
+
+**Refactoring du composant `RapportPDF` :** le layout actuel de `entry` utilise `marginLeft: 40` pour indenter le contenu sous l'heure (pattern `indent`). Ce pattern sera remplacé par le layout 3 colonnes — la migration est localisée dans `lib/pdf.tsx`, sans impact sur d'autres fichiers.
+
+**Pas de nouvelle dépendance :** `@react-pdf/renderer` supporte déjà `Image` — aucun package à ajouter.
+
+---
+
+### Résumé des impacts V1.1
+
+| FR | Fichiers modifiés | Nouveaux fichiers | Migration DB |
+|----|-------------------|-------------------|--------------|
+| FR-24 | `src/env.js`, `src/components/ui/Nav.tsx`, `docker-compose.yml` | — | Non |
+| FR-25 | `src/server/api/routers/entries.ts`, `src/components/features/entry-history/EntryList.tsx` | — | Non |
+| FR-26 | `src/components/features/entry-history/EntryList.tsx` | — | Non |
+| FR-27 | `src/lib/pdf.tsx` | — | Non |
+
+**Aucune migration de schéma de données requise pour V1.1.** Toutes les modifications sont localisées dans la couche présentation (frontend) ou la couche service (routeur, lib). Le modèle de données `entries` reste inchangé.
+
 

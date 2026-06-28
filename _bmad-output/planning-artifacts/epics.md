@@ -230,6 +230,65 @@ So that je peux le présenter à mon diététicien sans reconstitution manuelle 
 **And** une journée ne contenant que des entrées "instant" produit une section lisible, pas une section vide ou cassée
 **And** chaque valeur de poids/calories est visuellement marquée comme estimée ou mesurée
 
+---
+
+### V1.1 — Évolutions et corrections (2026-06-26)
+
+*Stories 1.9 à 1.11 correspondent aux FR-24 à FR-27 du PRD §11. Aucune migration de schéma requise. Voir addendum V1.1 dans `architecture.md` pour les décisions d'implémentation.*
+
+### Story 1.9: Afficher la version et le build dans l'en-tête
+
+As a utilisateur,
+I want voir immédiatement quelle version de PACAL tourne sur mon NAS,
+So that je peux identifier sans chercher dans les logs si l'application est à jour (FR-24).
+
+**Acceptance Criteria:**
+
+**Given** que le conteneur Docker est démarré avec les variables d'environnement `NEXT_PUBLIC_APP_VERSION` et `NEXT_PUBLIC_BUILD_DATE`
+**When** j'ouvre n'importe quelle page de l'application
+**Then** le titre "PACAL" est visible dans l'en-tête de navigation
+**And** sous ce titre, le numéro de version et la date de build sont affichés en plus petit et en italique
+**And** ces informations sont cohérentes avec les variables d'environnement injectées au build
+**And** en l'absence des variables (développement local), l'en-tête s'affiche sans erreur (valeurs optionnelles)
+
+### Story 1.10: Supprimer et dupliquer une entrée depuis l'historique
+
+As a utilisateur,
+I want pouvoir supprimer une entrée erronée ou en dupliquer une pour réutiliser son contenu,
+So that je peux corriger mon historique et accélérer la saisie d'entrées similaires (FR-25, FR-26).
+
+**Acceptance Criteria:**
+
+**Given** que je suis sur la vue historique
+**When** je choisis de supprimer une entrée
+**Then** une confirmation explicite m'est demandée avant la suppression
+**And** après confirmation, l'entrée disparaît de l'historique, des exports et des rapports
+**And** la photo associée (si elle existe) est également supprimée du stockage
+
+**Given** que je suis sur la vue historique
+**When** je choisis de dupliquer une entrée
+**Then** une nouvelle entrée est créée avec les mêmes valeurs (description, poids, calories, condition, note)
+**And** l'horodatage de la nouvelle entrée est celui de l'instant de la duplication (modifiable)
+**And** la photo de l'entrée source n'est pas copiée
+**And** l'entrée source reste inchangée
+
+### Story 1.11: Vignette photo dans le rapport PDF
+
+As a utilisateur,
+I want voir une vignette des photos dans le rapport PDF,
+So que je peux identifier visuellement les prises sans ouvrir l'export séparément (FR-27).
+
+**Acceptance Criteria:**
+
+**Given** que je génère un rapport PDF contenant des entrées avec et sans photo
+**When** le PDF est rendu
+**Then** chaque ligne d'entrée présente 3 colonnes : heure | contenu textuel | photo
+**And** une entrée avec photo affiche une vignette d'environ 2 cm de hauteur dans la colonne droite, avec le ratio d'aspect préservé
+**And** une entrée sans photo laisse la colonne droite vide (pas de placeholder ni d'icône)
+**And** la vignette ne provoque pas de saut de page intempestif
+
+---
+
 ## Epic 2: Accélérer la saisie et piloter ses apports
 
 En s'appuyant sur les entrées d'Epic 1, l'utilisateur peut scanner un

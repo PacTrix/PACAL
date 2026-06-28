@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -85,5 +87,25 @@ export const entriesRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND", message: "Entrée introuvable" });
       }
       return entry;
+    }),
+
+  delete: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const [entry] = await ctx.db
+        .select()
+        .from(entries)
+        .where(eq(entries.id, input.id));
+      if (!entry) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Entrée introuvable" });
+      }
+      if (entry.photoPath) {
+        try {
+          await fs.unlink(entry.photoPath);
+        } catch {
+          // Fichier absent du volume — non bloquant
+        }
+      }
+      await ctx.db.delete(entries).where(eq(entries.id, input.id));
     }),
 });
