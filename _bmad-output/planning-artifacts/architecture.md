@@ -292,6 +292,17 @@ story d'implémentation.*
   de base de données à créer.
 - Volumes Docker : un volume pour les photos (`/data/photos/`), monté dans
   le conteneur PACAL.
+- **Permissions du volume photos (note ajoutée le 28/06/2026) :** sur
+  Synology, un volume monté hérite des permissions du dossier réel côté NAS,
+  qui ne correspondent pas forcément à l'utilisateur `nextjs` (uid 1001)
+  utilisé dans le conteneur — le `chown`/`chmod` appliqués dans le
+  Dockerfile au moment du build ne s'appliquent qu'au système de fichiers
+  interne à l'image, et sont écrasés par le montage du volume réel.
+  Conséquence observée : écriture des photos en échec silencieux (`EACCES`,
+  visible uniquement dans les logs du conteneur). Corrigé en forçant les
+  permissions du dossier `data/photos/` à chaque déploiement, dans
+  `deploy.sh`, plutôt qu'une seule fois manuellement — voir le journal de
+  décisions du PRD pour la chronologie complète de cette découverte.
 - CI/CD : aucun pipeline formel — build et déploiement manuels via Docker
   Compose, cohérent avec un usage solo et le calendrier du week-end.
 - Monitoring/logs : logs du conteneur (Container Manager) suffisent ; pas
