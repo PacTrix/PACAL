@@ -98,15 +98,13 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
       >
         {scanning ? "⏹ Arrêter" : "📷 Scan"}
       </button>
-      {scanning && (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className="w-full max-w-xs rounded border border-gray-300"
-        />
-      )}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className={`w-full max-w-xs rounded border border-gray-300 ${scanning ? "" : "hidden"}`}
+      />
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
