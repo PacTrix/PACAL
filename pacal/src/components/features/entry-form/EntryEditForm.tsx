@@ -34,7 +34,7 @@ async function uploadPhoto(file: File): Promise<string | undefined> {
 }
 
 type SlotState = {
-  existingPath: string | null; // null = supprimée ou absente
+  existingPath: string | null;
   newFile: File | null;
   newPreviewUrl: string | null;
 };
@@ -43,78 +43,72 @@ function emptySlot(existing: string | null = null): SlotState {
   return { existingPath: existing, newFile: null, newPreviewUrl: null };
 }
 
-function PhotoWidget({
-  label,
-  slot,
-  onUpdate,
+// 4 boutons compacts sur une ligne, previews existantes ou nouvelles en dessous
+function PhotosEditWidget({
+  slot1,
+  slot2,
+  onUpdate1,
+  onUpdate2,
 }: {
-  label: string;
-  slot: SlotState;
-  onUpdate: (s: SlotState) => void;
+  slot1: SlotState;
+  slot2: SlotState;
+  onUpdate1: (s: SlotState) => void;
+  onUpdate2: (s: SlotState) => void;
 }) {
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const galleryRef = useRef<HTMLInputElement>(null);
+  const cam1Ref = useRef<HTMLInputElement>(null);
+  const gal1Ref = useRef<HTMLInputElement>(null);
+  const cam2Ref = useRef<HTMLInputElement>(null);
+  const gal2Ref = useRef<HTMLInputElement>(null);
 
-  const handleNewFile = (file: File | null) => {
+  const handleNew = (slot: SlotState, onUpdate: (s: SlotState) => void, file: File | null) => {
     if (slot.newPreviewUrl) URL.revokeObjectURL(slot.newPreviewUrl);
-    if (file) {
-      onUpdate({ ...slot, newFile: file, newPreviewUrl: URL.createObjectURL(file) });
-    } else {
-      onUpdate({ ...slot, newFile: null, newPreviewUrl: null });
-    }
+    if (file) onUpdate({ ...slot, newFile: file, newPreviewUrl: URL.createObjectURL(file) });
+    else onUpdate({ ...slot, newFile: null, newPreviewUrl: null });
   };
-
-  const handleRemove = () => {
+  const handleRemove = (slot: SlotState, onUpdate: (s: SlotState) => void) => {
     if (slot.newPreviewUrl) URL.revokeObjectURL(slot.newPreviewUrl);
     onUpdate({ existingPath: null, newFile: null, newPreviewUrl: null });
   };
 
-  const existingFilename = slot.existingPath ? extractFilename(slot.existingPath) : null;
+  const preview1 = slot1.newPreviewUrl ?? (slot1.existingPath ? `/api/photos/${extractFilename(slot1.existingPath)}` : null);
+  const preview2 = slot2.newPreviewUrl ?? (slot2.existingPath ? `/api/photos/${extractFilename(slot2.existingPath)}` : null);
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-brand-marine">
-        {label}{" "}
-        <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-      </span>
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => handleNewFile(e.target.files?.[0] ?? null)}
-      />
-      <input
-        ref={galleryRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleNewFile(e.target.files?.[0] ?? null)}
-      />
-
-      {slot.newPreviewUrl ? (
-        <div className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={slot.newPreviewUrl} alt="Nouvelle photo" className="h-32 w-full rounded border border-gray-200 object-cover" />
-          <div className="flex gap-2">
-            <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm">Changer</button>
-            <button type="button" onClick={handleRemove} className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600">Retirer</button>
-          </div>
-        </div>
-      ) : existingFilename ? (
-        <div className="flex flex-col gap-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/photos/${existingFilename}`} alt="Photo existante" className="h-32 w-full rounded border border-gray-200 object-cover" />
-          <div className="flex gap-2">
-            <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm">Remplacer</button>
-            <button type="button" onClick={handleRemove} className="rounded border border-red-200 px-3 py-1.5 text-sm text-red-600">Supprimer</button>
-          </div>
-        </div>
-      ) : (
+      <input ref={cam1Ref} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNew(slot1, onUpdate1, e.target.files?.[0] ?? null)} />
+      <input ref={gal1Ref} type="file" accept="image/*" className="hidden" onChange={(e) => handleNew(slot1, onUpdate1, e.target.files?.[0] ?? null)} />
+      <input ref={cam2Ref} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNew(slot2, onUpdate2, e.target.files?.[0] ?? null)} />
+      <input ref={gal2Ref} type="file" accept="image/*" className="hidden" onChange={(e) => handleNew(slot2, onUpdate2, e.target.files?.[0] ?? null)} />
+      <div className="grid grid-cols-4 gap-1.5">
+        <button type="button" onClick={() => cam1Ref.current?.click()} className="flex flex-col items-center gap-0.5 rounded border border-brand-marine px-1 py-2 text-xs text-brand-marine hover:bg-blue-50">
+          <span>📷</span><span>Photo 1</span>
+        </button>
+        <button type="button" onClick={() => gal1Ref.current?.click()} className="flex flex-col items-center gap-0.5 rounded border border-brand-marine px-1 py-2 text-xs text-brand-marine hover:bg-blue-50">
+          <span>🖼</span><span>Galerie 1</span>
+        </button>
+        <button type="button" onClick={() => cam2Ref.current?.click()} className="flex flex-col items-center gap-0.5 rounded border border-brand-marine px-1 py-2 text-xs text-brand-marine hover:bg-blue-50">
+          <span>📷</span><span>Photo 2</span>
+        </button>
+        <button type="button" onClick={() => gal2Ref.current?.click()} className="flex flex-col items-center gap-0.5 rounded border border-brand-marine px-1 py-2 text-xs text-brand-marine hover:bg-blue-50">
+          <span>🖼</span><span>Galerie 2</span>
+        </button>
+      </div>
+      {(preview1 ?? preview2) && (
         <div className="flex gap-2">
-          <button type="button" onClick={() => cameraRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm">📷 Prendre</button>
-          <button type="button" onClick={() => galleryRef.current?.click()} className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm">🖼 Galerie</button>
+          {preview1 && (
+            <div className="flex flex-1 flex-col gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview1} alt="Photo 1" className="h-24 w-full rounded border border-gray-200 object-cover" />
+              <button type="button" onClick={() => handleRemove(slot1, onUpdate1)} className="rounded border border-red-200 px-2 py-1 text-xs text-red-600">Retirer 1</button>
+            </div>
+          )}
+          {preview2 && (
+            <div className="flex flex-1 flex-col gap-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={preview2} alt="Photo 2" className="h-24 w-full rounded border border-gray-200 object-cover" />
+              <button type="button" onClick={() => handleRemove(slot2, onUpdate2)} className="rounded border border-red-200 px-2 py-1 text-xs text-red-600">Retirer 2</button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -161,7 +155,6 @@ export function EntryEditForm({ id }: { id: number }) {
     setNote(entry.note ?? "");
     setNoteType(entry.noteType ?? "");
     setBarcode(entry.barcode ?? "");
-    // Pré-charger les données OFF existantes si l'entrée en a
     if (entry.nutriscore ?? entry.nova ?? entry.greenscore) {
       setOffData({
         name: entry.description ?? null,
@@ -195,13 +188,14 @@ export function EntryEditForm({ id }: { id: number }) {
     setOffData(d);
     setOfIncomplete(false);
     setOffError(null);
+    if (d.name) setDescription(d.name); // toujours écraser avec le nom produit OFF
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookup.data, lookup.isError, lookup.isFetching]);
 
   const triggerLookup = (code: string) => {
     const trimmed = code.trim();
     if (trimmed.length < 4) return;
-    setKcalManual(false); // nouveau lookup = recalcul auto autorisé
+    setKcalManual(false); // nouveau barcode = recalcul kcal autorisé
     setLookupBarcode(trimmed);
   };
 
@@ -266,46 +260,42 @@ export function EntryEditForm({ id }: { id: number }) {
 
   const isBusy = isUploading || updateEntry.isPending;
 
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNote(e.target.value);
+    const rows = e.target.value.split("\n").length;
+    if (noteRef.current) noteRef.current.rows = rows >= 2 ? 3 : 1;
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Horodatage + bouton rafraîchissement (FR-28) */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-timestamp" className="text-sm font-medium text-brand-marine">
-          Date et heure
-        </label>
-        <div className="flex gap-2">
-          <input
-            id="edit-timestamp"
-            type="datetime-local"
-            value={timestamp}
-            onChange={(e) => setTimestamp(e.target.value)}
-            required
-            className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-          />
-          <button
-            type="button"
-            onClick={() => setTimestamp(formatDatetimeLocal(new Date()))}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
-            title="Actualiser à maintenant"
-          >
-            ↺ Maintenant
-          </button>
-        </div>
-      </div>
-
-      {/* Condition */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-condition" className="text-sm font-medium text-brand-marine">
-          Contexte <span className="text-red-500">*</span>
-        </label>
+      {/* Ligne 1 : Date + ↺ + Contexte */}
+      <div className="flex items-end gap-2">
+        <input
+          id="edit-timestamp"
+          type="datetime-local"
+          value={timestamp}
+          onChange={(e) => setTimestamp(e.target.value)}
+          required
+          className="rounded border border-gray-300 px-2 py-2 text-sm text-brand-marine"
+          style={{ width: "11rem" }}
+        />
+        <button
+          type="button"
+          onClick={() => setTimestamp(formatDatetimeLocal(new Date()))}
+          className="shrink-0 rounded border border-gray-300 px-2 py-2 text-base text-gray-500 hover:bg-gray-50"
+          title="Actualiser à maintenant"
+        >
+          ↺
+        </button>
         <select
           id="edit-condition"
           value={condition}
           onChange={(e) => setCondition(e.target.value)}
           required
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          className="flex-1 rounded border border-gray-300 px-2 py-2 text-sm text-brand-marine"
         >
-          <option value="">Choisir…</option>
+          <option value="">Contexte…</option>
           {ENTRY_CONDITIONS.map((c) => (
             <option key={c} value={c}>{ENTRY_CONDITION_LABELS[c]}</option>
           ))}
@@ -313,148 +303,112 @@ export function EntryEditForm({ id }: { id: number }) {
       </div>
 
       {/* Description */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-description" className="text-sm font-medium text-brand-marine">
-          Description{" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-        </label>
-        <input
-          id="edit-description"
-          type="text"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-        />
-      </div>
+      <input
+        id="edit-description"
+        type="text"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description…"
+        className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+      />
 
-      {/* Code-barres + enrichissement OpenFoodFacts (FR-36, FR-37, FR-38) */}
+      {/* Code-barres + Scan + scores inline */}
       <div className="flex flex-col gap-1">
-        <label htmlFor="edit-barcode" className="text-sm font-medium text-brand-marine">
-          Code-barres{" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-        </label>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <input
             id="edit-barcode"
             type="text"
             value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
             onBlur={() => triggerLookup(barcode)}
-            placeholder="EAN-13 ou EAN-8"
+            placeholder="Code-barres EAN"
             className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
           />
           <BarcodeScanner onDetected={(code) => { setBarcode(code); triggerLookup(code); }} />
-        </div>
-        {lookup.isFetching && (
-          <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>
-        )}
-        {offError && (
-          <p className="text-xs text-orange-500">{offError}</p>
-        )}
-        {offData && (
-          <div className="flex items-center gap-2 rounded border border-gray-100 bg-gray-50 px-3 py-1.5">
+          {offData && (
             <NutriscoreDisplay
               nutriscore={offData.nutriscore}
               nova={offData.nova}
               greenscore={offData.greenscore}
             />
-            {offData.name && (
-              <span className="truncate text-xs text-gray-500">{offData.name}</span>
-            )}
-          </div>
-        )}
+          )}
+        </div>
+        {lookup.isFetching && <p className="text-xs text-gray-400">Recherche OpenFoodFacts…</p>}
+        {offError && <p className="text-xs text-orange-500">{offError}</p>}
       </div>
 
-      {/* Quantité + unité (FR-30) */}
-      <div className="flex gap-3">
+      {/* Quantité + Unité + Calories */}
+      <div className="flex gap-2">
         <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="edit-quantity" className="text-sm font-medium text-brand-marine">
-            Quantité{" "}
-            <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-          </label>
+          <label htmlFor="edit-quantity" className="text-xs text-gray-500">Quantité</label>
           <input
             id="edit-quantity"
             type="number"
             min="0"
             step="1"
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            onChange={(e) => { setQuantity(e.target.value); if (offData) setKcalManual(false); }}
             className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
           />
         </div>
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="edit-unit" className="text-sm font-medium text-brand-marine">
-            Unité{" "}
-            <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-          </label>
+        <div className="flex flex-col gap-1" style={{ width: "5.5rem" }}>
+          <label htmlFor="edit-unit" className="text-xs text-gray-500">Unité</label>
           <select
             id="edit-unit"
             value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+            onChange={(e) => { setUnit(e.target.value); if (offData) setKcalManual(false); }}
+            className="rounded border border-gray-300 px-2 py-2 text-sm text-brand-marine"
           >
             <option value="">—</option>
             {ENTRY_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
-      </div>
-
-      {/* Calories (FR-39 : calcul auto depuis OFF) */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-calories" className="flex items-center gap-2 text-sm font-medium text-brand-marine">
-          Calories (kcal){" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-          {kcalManual && offData && (
-            <span className="text-xs font-normal text-orange-400">(saisie manuelle)</span>
+        <div className="flex flex-col gap-1" style={{ width: "5.5rem" }}>
+          <label htmlFor="edit-calories" className="flex items-center gap-1 text-xs text-gray-500">
+            Kcal {kcalManual && offData && <span className="text-orange-400">✎</span>}
+          </label>
+          {isKcalUnavailable(unit || null, offData?.kcalPerPortion ?? null, offData !== null) ? (
+            <div className="rounded border border-gray-200 bg-gray-50 px-2 py-2 text-sm text-gray-400">---</div>
+          ) : (
+            <input
+              id="edit-calories"
+              type="number"
+              min="0"
+              step="any"
+              value={calories}
+              onChange={(e) => { setCalories(e.target.value); if (offData) setKcalManual(true); }}
+              className="rounded border border-gray-300 px-2 py-2 text-sm text-brand-marine"
+            />
           )}
-        </label>
-        {isKcalUnavailable(unit || null, offData?.kcalPerPortion ?? null, offData !== null) ? (
-          <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-400">
-            --- (portion inconnue dans OpenFoodFacts)
-          </div>
-        ) : (
-          <input
-            id="edit-calories"
-            type="number"
-            min="0"
-            step="any"
-            value={calories}
-            onChange={(e) => {
-              setCalories(e.target.value);
-              if (offData) setKcalManual(true);
-            }}
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
-          />
-        )}
+        </div>
       </div>
 
-      {/* Note + type de note (FR-31) */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="edit-note" className="text-sm font-medium text-brand-marine">
-          Note{" "}
-          <span className="text-xs font-normal text-gray-500">(optionnel)</span>
-        </label>
+      {/* Note auto-expand + type */}
+      <div className="flex gap-2">
         <textarea
+          ref={noteRef}
           id="edit-note"
           value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          onChange={handleNoteChange}
+          rows={1}
+          placeholder="Note (optionnel)…"
+          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
+          style={{ resize: "none" }}
         />
         <select
           id="edit-noteType"
           value={noteType}
           onChange={(e) => setNoteType(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-500"
+          className="rounded border border-gray-300 px-2 py-2 text-sm text-gray-500"
+          style={{ width: "7.5rem" }}
         >
-          <option value="">Type de note (optionnel)</option>
+          <option value="">Type…</option>
           {NOTE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
-      {/* Deux photos (FR-33) */}
-      <PhotoWidget label="Photo 1" slot={slot1} onUpdate={setSlot1} />
-      <PhotoWidget label="Photo 2" slot={slot2} onUpdate={setSlot2} />
+      {/* Photos 4 boutons compacts */}
+      <PhotosEditWidget slot1={slot1} slot2={slot2} onUpdate1={setSlot1} onUpdate2={setSlot2} />
 
       <button
         type="submit"

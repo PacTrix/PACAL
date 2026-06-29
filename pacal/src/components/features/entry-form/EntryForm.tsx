@@ -167,13 +167,14 @@ export function EntryForm() {
     setOffData(d);
     setOfIncomplete(false);
     setOffError(null);
-    if (d.name && !description) setDescription(d.name);
+    if (d.name) setDescription(d.name); // toujours écraser avec le nom produit OFF
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookup.data, lookup.isError, lookup.isFetching]);
 
   const triggerLookup = (code: string) => {
     const trimmed = code.trim();
     if (trimmed.length < 4) return;
+    setKcalManual(false); // nouveau barcode = recalcul kcal autorisé
     setLookupBarcode(trimmed);
   };
 
@@ -351,7 +352,7 @@ export function EntryForm() {
             min="0"
             step="1"
             value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
+            onChange={(e) => { setQuantity(e.target.value); if (offData) setKcalManual(false); }}
             placeholder="0"
             className="rounded border border-gray-300 px-3 py-2 text-sm text-brand-marine"
           />
@@ -361,7 +362,7 @@ export function EntryForm() {
           <select
             id="unit"
             value={unit}
-            onChange={(e) => setUnit(e.target.value)}
+            onChange={(e) => { setUnit(e.target.value); if (offData) setKcalManual(false); }}
             className="rounded border border-gray-300 px-2 py-2 text-sm text-brand-marine"
           >
             <option value="">—</option>

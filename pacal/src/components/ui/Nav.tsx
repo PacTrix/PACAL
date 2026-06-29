@@ -16,10 +16,10 @@ export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b border-gray-200">
-      {/* Barre titre : fond orange, texte bleu */}
-      <div className="bg-brand-orange px-4 py-2">
-        <div className="mx-auto flex max-w-md items-center gap-2">
+    <nav className="border-b border-gray-200 bg-white">
+      <div className="mx-auto max-w-md px-4">
+        {/* Titre + logo */}
+        <div className="flex items-center gap-2 py-2">
           <Image
             src="/logo.png"
             alt="PACAL"
@@ -27,12 +27,10 @@ export function Nav() {
             height={32}
             className="shrink-0"
           />
-          <span className="text-base font-bold text-brand-marine">PACAL</span>
+          <span className="text-base font-bold text-brand-orange">PACAL</span>
         </div>
-      </div>
-      {/* Barre menu */}
-      <div className="bg-white px-4 py-1">
-        <div className="mx-auto flex max-w-md flex-wrap gap-1">
+        {/* Menu */}
+        <div className="flex flex-wrap gap-1 pb-1">
           {LINKS.map(({ href, label }) => (
             <Link
               key={href}
