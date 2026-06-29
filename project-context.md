@@ -20,7 +20,7 @@
 
 ### Infrastructure
 - **NAS Synology DS923+** : héberge le container Docker Next.js + PostgreSQL
-- **Tailscale** : VPN mesh → HTTPS disponible sur réseau privé (requis pour BarcodeDetector API et getUserMedia)
+- **Tailscale** : VPN mesh + certificat HTTPS Tailscale → URL prod `https://one.tailb67d71.ts.net` (requis pour BarcodeDetector et getUserMedia — Chrome n'expose ces API qu'en secure context)
 - **Volume Docker** : `/data/photos` pour les photos, `/data/postgres` pour la DB
 - **Pas de drizzle-kit sur le NAS** : migrations SQL manuelles dans `pacal/drizzle/`
 
@@ -44,7 +44,7 @@ ALTER TABLE "pacal_entry" ADD COLUMN "of_incomplete" boolean DEFAULT false;
 
 ### Intégrations externes
 - **OpenFoodFacts** : appel côté serveur via tRPC `products.lookup`, AbortController 5s, retourne `null` sur toute erreur
-- **BarcodeDetector API** : native Chrome Android 83+, zero bundle. Guard : `useState(false)` + `useEffect(() => setCanScan("BarcodeDetector" in window), [])` (évite le mismatch SSR)
+- **BarcodeDetector API** : native Chrome Android 83+, zero bundle. Requiert HTTPS (secure context). Guard : `useState(false)` + `useEffect(() => setCanScan("BarcodeDetector" in window), [])` (évite le mismatch SSR). Bouton toujours affiché, erreur explicite au clic si non supporté ou page en HTTP.
 
 ### Conventions code
 - Tailwind v4 : couleurs custom via `@theme { --color-brand-orange: #F05C22; --color-brand-marine: #06466D; }`

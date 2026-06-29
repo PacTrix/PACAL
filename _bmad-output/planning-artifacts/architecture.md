@@ -245,12 +245,15 @@ story d'implémentation.*
   entre les appareils et le NAS. La connexion entre le conteneur Next.js et
   PostgreSQL reste interne au réseau Docker du NAS, jamais exposée.
 - **HTTPS même en réseau privé :** l'accès caméra du navigateur
-  (`getUserMedia`, requis par FR-13) n'est autorisé par les navigateurs que
-  dans un contexte sécurisé (HTTPS), même sur un réseau privé Tailscale —
-  une IP Tailscale brute en HTTP ne suffit pas. Les certificats HTTPS
-  Tailscale (activables depuis la console d'admin, domaine
-  `*.ts.net`) doivent donc être activés pour le nœud NAS. *Trouvé en
-  validation (step 7) — voir Gap Analysis ci-dessous.*
+  (`getUserMedia`, FR-13) et l'API `BarcodeDetector` (FR-36) ne sont exposés
+  par Chrome que dans un **secure context** (HTTPS ou `localhost`). Une IP ou
+  hostname Tailscale servi en HTTP ne suffit pas — Chrome masque ces API
+  silencieusement. *Trouvé en validation (step 7). Résolu en production V2,
+  voir Addendum V2-HTTPS ci-dessous.*
+
+- **Authentification applicative (non implémentée) :** envisagée (mot de passe
+  simple ou WebAuthn/Passkey) si PACAL devait être réexposé publiquement. Non
+  urgente tant que l'accès reste limité au tailnet.
 - **Surface API :** aucune clé publique à protéger ; les seuls appels
   sortants sont vers OpenFoodFacts (et Yuka si retenu), sans authentification
   entrante à gérer.
@@ -727,6 +730,53 @@ une story applicative.
 
 ---
 
+## Addendum V2-HTTPS — Sécurisation accès HTTPS (2026-06-29)
+
+### Contexte
+
+Suite au déploiement V2 (FR-36, scan code-barres), le scanner ne fonctionnait pas sur Samsung Galaxy via Tailscale : Chrome masquait `BarcodeDetector` car la page était servie en HTTP. Ce problème est indépendant du code applicatif — il relève uniquement de la couche infrastructure.
+
+---
+
+### Tentative initiale abandonnée : domaine public + Let's Encrypt
+
+**Mise en place :** sous-domaine `pacal.madeinpac.fr` (DNS A → `130.180.208.87`), certificat Let's Encrypt DSM, reverse proxy Synology `pacal.madeinpac.fr:443 → localhost:3000`. Techniquement fonctionnel — Chrome autorisait le scanner.
+
+**Raison de l'abandon :** PACAL se retrouvait exposé sur Internet public sans aucune authentification. DSM ne propose pas de Basic Auth sur le reverse proxy en interface graphique (seul un filtrage IP/CIDR est disponible nativement, inadapté en mobilité sans IP fixe). Une Basic Auth réelle aurait nécessité une injection nginx manuelle en SSH (fragile aux mises à jour DSM).
+
+**État actuel :** le DNS et le certificat Let's Encrypt de `pacal.madeinpac.fr` sont laissés en place sans risque (inutilisés mais non dangereux). Suppression optionnelle à l'occasion.
+
+---
+
+### Solution retenue : certificat Tailscale (accès strictement privé)
+
+**Principe :** Tailscale génère un certificat HTTPS valide (Let's Encrypt en coulisses) pour le hostname `<machine>.<tailnet>.ts.net`, sans exposition Internet. Seuls les appareils autorisés sur le tailnet peuvent résoudre ce nom.
+
+**Étapes réalisées :**
+1. Activation "HTTPS Certificates" dans la console Tailscale admin (`login.tailscale.com/admin/dns`).
+2. `sudo tailscale cert one.tailb67d71.ts.net` sur le NAS → `one.tailb67d71.ts.net.crt` + `.key`.
+3. Import dans DSM : Control Panel → Security → Certificate → Add → Import.
+4. Reverse proxy reconfiguré : source `one.tailb67d71.ts.net:443` (HTTPS) → destination `localhost:3000` (inchangée).
+5. Association du certificat Tailscale au service dans Certificate → Settings.
+
+**URL de production :** `https://one.tailb67d71.ts.net`
+
+**Résultat :** HTTPS valide, Chrome autorise `BarcodeDetector` et `getUserMedia`. Accès exclusivement depuis les appareils du tailnet. Le chiffrement WireGuard Tailscale existait déjà ; le certificat ajoute uniquement la couche HTTPS applicative requise par le navigateur.
+
+---
+
+### Impact sur les décisions d'architecture existantes
+
+| Décision | Avant | Après |
+|---|---|---|
+| Authentification & Security | "certificats `*.ts.net` à activer" (vague) | Étapes précises documentées, hostname réel |
+| NFR-2 (accès distant) | Tailscale HTTP (insuffisant pour l'API caméra) | Tailscale HTTPS via certificat `one.tailb67d71.ts.net` |
+| Authentification applicative | Non prévue | Toujours non implémentée — envisagée si exposition publique future |
+
+**Aucune modification de code applicatif, de schéma DB ou de dépendances.** Changement purement infrastructure.
+
+---
+
 ## Addendum V1.2 — Retrofit schéma et corrections (2026-06-28)
 
 ### Contexte
@@ -1048,7 +1098,8 @@ function computeKcal(
   if (unit === 'kg')   return kcalPer100g ? Math.floor(quantity * 1000 * kcalPer100g / 100) : null;
   if (unit === 'dl')   return kcalPer100g ? Math.floor(quantity * 100 * kcalPer100g / 100) : null;
   if (unit === 'l')    return kcalPer100g ? Math.floor(quantity * 1000 * kcalPer100g / 100) : null;
-  if (unit === 'portion') return kcalPerPortion ? Math.floor(kcalPerPortion) : null;
+  if (unit === 'portion') return kcalPerPortion ? Math.floor(quantity * kcalPerPortion) : null;
+  // Ex : 2 portions × 123 kcal/portion = 246 kcal (corrigé le 29/06/2026 — la quantité était ignorée)
   return null;
 }
 ```
