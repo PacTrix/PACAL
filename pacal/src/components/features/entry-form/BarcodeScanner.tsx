@@ -64,6 +64,14 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
         formats: ["ean_13", "ean_8"],
       });
 
+      // Attendre que la vidéo ait une première frame avant de démarrer la détection
+      // BarcodeDetector.detect() retourne [] silencieusement si readyState < 2
+      await new Promise<void>((resolve) => {
+        if (!videoRef.current) { resolve(); return; }
+        if (videoRef.current.readyState >= 2) { resolve(); return; }
+        videoRef.current.onloadeddata = () => resolve();
+      });
+
       const tick = async () => {
         if (!videoRef.current || !streamRef.current) return;
         try {
