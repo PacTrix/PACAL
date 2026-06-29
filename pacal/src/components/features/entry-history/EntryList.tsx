@@ -33,7 +33,6 @@ export function EntryList() {
     deleteMutation.mutate({ id });
   };
 
-  // Story 1.18 : duplication → formulaire pré-rempli (sans photo, date = maintenant)
   const handleDuplicate = (entry: (typeof data)[number]) => {
     const params = new URLSearchParams();
     if (entry.condition) params.set("condition", entry.condition);
@@ -43,6 +42,13 @@ export function EntryList() {
     if (entry.calories != null) params.set("calories", String(entry.calories));
     if (entry.note) params.set("note", entry.note);
     if (entry.noteType) params.set("noteType", entry.noteType);
+    // Préserver barcode + données OpenFoodFacts (scores + kcal)
+    if (entry.barcode) params.set("barcode", entry.barcode);
+    if (entry.nutriscore) params.set("nutriscore", entry.nutriscore);
+    if (entry.nova != null) params.set("nova", String(entry.nova));
+    if (entry.greenscore) params.set("greenscore", entry.greenscore);
+    if (entry.kcalPer100g != null) params.set("kcalPer100g", String(entry.kcalPer100g));
+    if (entry.kcalPerPortion != null) params.set("kcalPerPortion", String(entry.kcalPerPortion));
     router.push(`/?${params.toString()}`);
   };
 
@@ -52,7 +58,7 @@ export function EntryList() {
         <li key={entry.id} className="flex items-stretch gap-0 rounded-lg border border-gray-200">
           <Link
             href={`/entrees/${entry.id}`}
-            className="flex flex-1 flex-col gap-0.5 px-4 py-3 hover:bg-gray-50 active:bg-gray-100"
+            className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 hover:bg-gray-50 active:bg-gray-100"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-brand-marine">

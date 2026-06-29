@@ -106,13 +106,24 @@ export function BarcodeScanner({ onDetected }: BarcodeScannerProps) {
       >
         {scanning ? "⏹ Arrêter" : "📷 Scan"}
       </button>
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className={`w-full max-w-xs rounded border border-gray-300 ${scanning ? "" : "hidden"}`}
-      />
+      <div className={`relative w-full max-w-xs ${scanning ? "" : "hidden"}`}>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full rounded border border-gray-300"
+        />
+        {scanning && (
+          <>
+            <p className="absolute top-1.5 left-0 right-0 text-center text-xs text-white/80">
+              Pointez un code-barres EAN
+            </p>
+            <div className="pointer-events-none absolute inset-4 rounded border-2 border-white/60" />
+            <div className="pointer-events-none absolute top-1/2 left-4 right-4 h-0.5 bg-green-400" />
+          </>
+        )}
+      </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
